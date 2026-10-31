@@ -32,6 +32,21 @@ export function toLocal(el: Placed, px: number, py: number, stage: Stage) {
 	return { x: (dx * c - dy * s) / r, y: (dx * s + dy * c) / r };
 }
 
+/** Every element under a stage point, topmost first; later elements draw on top. */
+export function hitAll<T extends Placed>(
+	elements: readonly T[],
+	px: number,
+	py: number,
+	stage: Stage
+): T[] {
+	const hits: T[] = [];
+	for (let i = elements.length - 1; i >= 0; i--) {
+		const local = toLocal(elements[i], px, py, stage);
+		if (Math.hypot(local.x, local.y) <= 1) hits.push(elements[i]);
+	}
+	return hits;
+}
+
 /** The topmost element under a stage point; later elements draw on top. */
 export function hitTest<T extends Placed>(
 	elements: readonly T[],

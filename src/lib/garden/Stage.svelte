@@ -2,7 +2,7 @@
 	import { Sketch } from 'svelte-p5-components';
 	import { ExportButton } from 'svelte-p5-components/export';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { elementRadius, hitTest, smoothPath, strokeFromPath } from '#lib/scene/geometry.js';
+	import { elementRadius, hitAll, smoothPath, strokeFromPath } from '#lib/scene/geometry.js';
 	import type { Brush, Scene } from '#lib/scene/scene.svelte.js';
 	import { Maximize2, Move, RotateCw } from '@lucide/svelte';
 	import { BACKDROPS } from './backdrops.js';
@@ -13,13 +13,19 @@
 		scene,
 		element = $bindable(),
 		tool = 'arrange',
-		brush = 'vine'
+		brush = 'vine',
+		stack = $bindable(null)
 	}: {
 		scene: Scene;
 		element?: HTMLDivElement;
 		tool?: 'arrange' | 'paint';
 		brush?: Brush;
+		/** Where the selection sits among the plants under the last click, when there are several. */
+		stack?: { index: number; total: number } | null;
 	} = $props();
+
+	// A click (no drag) on the already-selected plant steps to the next one under the pointer.
+	let cycle: { ids: string[]; x: number; y: number } | null = null;
 
 	let painting: { x: number; y: number }[] | null = null;
 
@@ -97,11 +103,22 @@
 			element!.setPointerCapture(e.pointerId);
 			return;
 		}
-		const hit = hitTest(scene.elements, pt.x, pt.y, stage);
-		if (!hit) return scene.select(null);
-		scene.select(hit.id);
-		scene.raise(hit.id);
-		gesture = { mode: 'move', id: hit.id, dx: hit.x * width - pt.x, dy: hit.y * height - pt.y };
+		const hits = hitAll(scene.elements, pt.x, pt.y, stage);
+		if (hits.length === 0) {
+			stack = null;
+			return scene.select(null);
+		}
+		const current = hits.find((h) => h.id === scene.selectedId);
+		const target = current ?? hits[0];
+		scene.select(target.id);
+		cycle = current && hits.length > 1 ? { ids: hits.map((h) => h.id), x: pt.x, y: pt.y } : null;
+		stack = hits.length > 1 ? { index: hits.indexOf(target) + 1, total: hits.length } : null;
+		gesture = {
+			mode: 'move',
+			id: target.id,
+			dx: target.x * width - pt.x,
+			dy: target.y * height - pt.y
+		};
 		element!.setPointerCapture(e.pointerId);
 		element!.focus();
 	}
@@ -133,6 +150,7 @@
 		}
 		if (!gesture || !selection) return;
 		const pt = local(e);
+		if (cycle && Math.hypot(pt.x - cycle.x, pt.y - cycle.y) > 3) cycle = null;
 		if (gesture.mode === 'move') {
 			scene.move(gesture.id, (pt.x + gesture.dx) / width, (pt.y + gesture.dy) / height);
 			return;
@@ -156,6 +174,12 @@
 
 	function onUp() {
 		gesture = null;
+		if (cycle && scene.selectedId) {
+			const next = (cycle.ids.indexOf(scene.selectedId) + 1) % cycle.ids.length;
+			scene.select(cycle.ids[next]);
+			stack = { index: next + 1, total: cycle.ids.length };
+		}
+		cycle = null;
 		if (!painting) return;
 		if (painting.length >= 3)
 			scene.addStroke(brush, strokeFromPath(smoothPath(painting, 2), stage));
@@ -262,6 +286,7 @@
 		border: 1.5px dashed rgb(255 255 255 / 0.7);
 		box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
 		border-radius: 50%;
+		background: rgb(165 180 252 / 0.12);
 		pointer-events: none;
 	}
 	.actions {
