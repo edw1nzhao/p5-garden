@@ -1,5 +1,7 @@
 <script lang="ts">
-	import type { Snippet } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
+	import { handEvent, type HandState } from '#lib/hands/gesture.js';
+	import { tracker } from '#lib/hands/tracker.svelte.js';
 	import { Sketch } from 'svelte-p5-components';
 	import { ExportButton } from 'svelte-p5-components/export';
 	import { prefersReducedMotion } from 'svelte/motion';
@@ -40,7 +42,12 @@
 	// Under 'demand', reading the elements deeply makes any scene change redraw.
 	const bridge = {
 		get state() {
-			return { elements: scene.elements, mood: scene.mood, draft: scene.draft };
+			return {
+				elements: scene.elements,
+				mood: scene.mood,
+				draft: scene.draft,
+				hands: tracker.skeleton
+			};
 		}
 	};
 
@@ -99,18 +106,24 @@
 
 	function onStageDown(e: PointerEvent) {
 		if (e.button !== 0 || (e.target as Element).closest('button')) return;
-		const pt = local(e);
+		if (!downAt(local(e))) return;
+		element!.setPointerCapture(e.pointerId);
+		element!.focus();
+	}
+
+	/** Starts painting or a move at a stage point; false when the point hit nothing. */
+	function downAt(pt: { x: number; y: number }) {
 		if (tool === 'paint') {
 			scene.select(null);
 			painting = [pt];
 			scene.draft = [{ x: pt.x / width, y: pt.y / height }];
-			element!.setPointerCapture(e.pointerId);
-			return;
+			return true;
 		}
 		const hits = hitAll(scene.elements, pt.x, pt.y, stage);
 		if (hits.length === 0) {
 			stack = null;
-			return scene.select(null);
+			scene.select(null);
+			return false;
 		}
 		const current = hits.find((h) => h.id === scene.selectedId);
 		const target = current ?? hits[0];
@@ -123,8 +136,7 @@
 			dx: target.x * width - pt.x,
 			dy: target.y * height - pt.y
 		};
-		element!.setPointerCapture(e.pointerId);
-		element!.focus();
+		return true;
 	}
 
 	function onGripDown(e: PointerEvent, grip: Grip) {
@@ -144,8 +156,11 @@
 	}
 
 	function onMove(e: PointerEvent) {
+		moveTo(local(e));
+	}
+
+	function moveTo(pt: { x: number; y: number }) {
 		if (painting) {
-			const pt = local(e);
 			const last = painting[painting.length - 1];
 			if (Math.hypot(pt.x - last.x, pt.y - last.y) < 3) return;
 			painting.push(pt);
@@ -153,7 +168,6 @@
 			return;
 		}
 		if (!gesture || !selection) return;
-		const pt = local(e);
 		if (cycle && Math.hypot(pt.x - cycle.x, pt.y - cycle.y) > 3) cycle = null;
 		if (gesture.mode === 'move') {
 			scene.move(gesture.id, (pt.x + gesture.dx) / width, (pt.y + gesture.dy) / height);
@@ -175,6 +189,21 @@
 			scene.transform(gesture.id, { rotation: selection.el.rotation + step });
 		}
 	}
+
+	// A pinch acts like a press: pinch to grab or start painting, move, open the fingers to let go.
+	let prevHand: HandState | null = null;
+	$effect(() => {
+		const next = tracker.hand;
+		const event = handEvent(prevHand, next);
+		prevHand = next && { pointer: { ...next.pointer }, pinching: next.pinching };
+		if (!event || event === 'hover' || !width) return;
+		const pt = next && { x: next.pointer.x * width, y: next.pointer.y * height };
+		untrack(() => {
+			if (event === 'down' && pt) downAt(pt);
+			else if (event === 'move' && pt) moveTo(pt);
+			else if (event === 'up') onUp();
+		});
+	});
 
 	function onUp() {
 		gesture = null;

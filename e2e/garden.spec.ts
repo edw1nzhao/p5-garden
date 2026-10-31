@@ -147,3 +147,11 @@ test('undo and redo step through changes from the toolbar and the keyboard', asy
 	await expect(desc).toContainText('waiting for seeds');
 	await expect(undo).toBeDisabled();
 });
+
+test('Hands explains clearly when no camera is available', async ({ page }) => {
+	const hands = page.getByRole('button', { name: 'Hands' });
+	await hands.click();
+	await expect(page.getByText(/camera/i).first()).toBeVisible();
+	await expect(hands).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.locator('figure.cam')).toBeHidden();
+});

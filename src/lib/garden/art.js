@@ -248,7 +248,8 @@ export const BACKDROPS = {
  * Draws one frame of a garden: backdrop, then every element in order. `clock` holds each
  * element's own time and the shared sway time, so speed changes never jump.
  * @param {P5} p @param {Garden} garden
- * @param {{ sway: number, times: Map<string, number>, lean?: Map<string, number> }} clock
+ * @param {{ sway: number, times: Map<string, number>, lean?: Map<string, number>,
+ *   pointer?: { x: number, y: number } }} clock
  */
 export function drawGarden(p, garden, clock) {
 	const width = p.width;
@@ -264,8 +265,8 @@ export function drawGarden(p, garden, clock) {
 	p.blendMode(garden.mood.glow && !backdrop.light ? p.ADD : p.BLEND);
 	clock.sway += dt;
 	const lean = (clock.lean ??= new Map());
-	const mx = p.mouseX;
-	const my = p.mouseY;
+	const mx = clock.pointer ? clock.pointer.x : p.mouseX;
+	const my = clock.pointer ? clock.pointer.y : p.mouseY;
 	const pointerIn = mx >= 0 && my >= 0 && mx <= width && my <= height;
 	const unit = BASE_RADIUS * Math.min(width, height);
 	for (const el of garden.elements) {

@@ -4,9 +4,12 @@
 	import Stage from '#lib/garden/Stage.svelte';
 	import Panel from '#lib/garden/Panel.svelte';
 	import CodePanel from '#lib/garden/CodePanel.svelte';
+	import { tracker } from '#lib/hands/tracker.svelte.js';
+	import { onMount } from 'svelte';
 	import {
 		Brush as BrushIcon,
 		CodeXml,
+		Hand,
 		Redo2,
 		Undo2,
 		Leaf,
@@ -33,14 +36,29 @@
 		{ id: 'silk', label: 'Silk', icon: Spline }
 	] as const;
 	const hint = $derived(
-		tool === 'paint'
-			? 'Paint: drag across the canvas to paint a living stroke'
-			: scene.selected && stack
-				? `Layer ${stack.index} of ${stack.total} here · click again for the next`
-				: scene.selected
-					? 'Drag to move · grips to turn and resize · Delete removes'
-					: 'Drag a seed onto the canvas, or click one to plant it'
+		tracker.status === 'error'
+			? tracker.message
+			: tracker.status === 'loading'
+				? 'Starting the camera and hand tracking…'
+				: tracker.status === 'on'
+					? tool === 'paint'
+						? 'Hands: pinch and move to paint, open your fingers to finish'
+						: 'Hands: pinch a plant to grab it, move, then open your fingers'
+					: tool === 'paint'
+						? 'Paint: drag across the canvas to paint a living stroke'
+						: scene.selected && stack
+							? `Layer ${stack.index} of ${stack.total} here · click again for the next`
+							: scene.selected
+								? 'Drag to move · grips to turn and resize · Delete removes'
+								: 'Drag a seed onto the canvas, or click one to plant it'
 	);
+	let video = $state<HTMLVideoElement>();
+	onMount(() => () => tracker.stop());
+
+	function toggleHands() {
+		if (tracker.status === 'on' || tracker.status === 'loading') tracker.stop();
+		else if (video) tracker.start(video);
+	}
 	let stageEl = $state<HTMLDivElement>();
 
 	interface Drag {
@@ -214,6 +232,17 @@
 			<span class="sep" role="presentation"></span>
 			<button
 				type="button"
+				class="tool"
+				aria-pressed={tracker.status === 'on'}
+				title="Use your hands through the camera. Video stays on this device."
+				onclick={toggleHands}
+			>
+				<Hand size={18} aria-hidden="true" />
+				<span>{tracker.status === 'loading' ? 'Starting…' : 'Hands'}</span>
+			</button>
+			<span class="sep" role="presentation"></span>
+			<button
+				type="button"
 				class="tool icon-only"
 				aria-label="Undo"
 				title="Undo (Ctrl/⌘+Z)"
@@ -255,6 +284,11 @@
 			<Panel {scene} />
 		</div>
 	{/if}
+
+	<figure class="cam glass" class:on={tracker.status === 'on'}>
+		<video bind:this={video} muted playsinline aria-hidden="true"></video>
+		<figcaption><span class="dot" aria-hidden="true"></span>Camera on</figcaption>
+	</figure>
 
 	{#if drag?.active}
 		<div class="ghost" style="left: {drag.x}px; top: {drag.y}px;" aria-hidden="true">
@@ -391,7 +425,7 @@
 		cursor: pointer;
 		transition: background 120ms;
 	}
-	.tool:hover:not(:disabled) {
+	.tool:hover:not(:disabled):not([aria-pressed='true']) {
 		background: var(--surface-hover);
 	}
 	.tool:disabled {
@@ -431,6 +465,38 @@
 		max-width: calc(100vw - var(--space) * 32);
 		height: calc(100dvh - var(--space) * 48);
 		display: grid !important;
+	}
+	.cam {
+		position: absolute;
+		left: calc(var(--space) * 4);
+		bottom: calc(var(--space) * 4);
+		margin: 0;
+		padding: var(--space);
+		display: none;
+		width: 136px;
+	}
+	.cam.on {
+		display: grid;
+		gap: var(--space);
+	}
+	.cam video {
+		width: 100%;
+		border-radius: var(--radius-md);
+		transform: scaleX(-1);
+	}
+	.cam figcaption {
+		display: flex;
+		align-items: center;
+		gap: calc(var(--space) * 1.5);
+		padding: 0 var(--space);
+		font-size: var(--text-xs);
+		color: var(--fg-muted);
+	}
+	.dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--danger);
 	}
 	.ghost {
 		position: fixed;
