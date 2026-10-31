@@ -11,6 +11,9 @@ importers:
       '@lucide/svelte':
         specifier: ^1.65.0
         version: 1.65.0(svelte@5.57.3)
+      '@mediapipe/tasks-vision':
+        specifier: ^1.2.0
+        version: 1.2.0
       p5:
         specifier: ^2.3.4
         version: 2.3.4
@@ -90,6 +93,9 @@ packages:
     resolution: {integrity: sha512-VfM4Ej7JFYz33WXm/JdqtOsOqRtfca5H9eFcyfcbFthWvbOnvvCerY/YkEk0ZiAvOvqo5hpK3u+opC0zY7Caxw==}
     peerDependencies:
       svelte: ^5
+
+  '@mediapipe/tasks-vision@1.2.0':
+    resolution: {integrity: sha512-7+dr9GbGyTtcuLh11wE5TOn4dNFRncIT9oAWs72620WX99KW5FfzF6rFJ/ChTgXG9vJ6dCiE9FrEEY4CnwPWKQ==}
 
   '@neodrag/core@3.0.0-next.12':
     resolution: {integrity: sha512-NInKt94ePpmwFJZveemnoQYLCL0X8QsdTVTXm/d71SPWitnr8af6fErZMFUCGXJFMEI06JWKgPUjNRMOQDx2Sg==}
@@ -751,6 +757,8 @@ snapshots:
   '@lucide/svelte@1.65.0(svelte@5.57.3)':
     dependencies:
       svelte: 5.57.3
+
+  '@mediapipe/tasks-vision@1.2.0': {}
 
   '@neodrag/core@3.0.0-next.12': {}
 
