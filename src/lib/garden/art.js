@@ -6,7 +6,7 @@
  * @typedef {{ id: string, kind: string, x: number, y: number, scale: number, rotation: number,
  *   seed: number, hue: number, vividness: number, density: number, speed: number,
  *   brush?: string, path?: number[] }} Plant
- * @typedef {{ mood: { backdrop: string, wind: number, glow: boolean }, elements: Plant[] }} Garden
+ * @typedef {{ mood: { backdrop: string, wind: number, glow: boolean, react?: boolean }, elements: Plant[] }} Garden
  */
 
 /** @param {number} seed */
@@ -273,18 +273,18 @@ export function drawGarden(p, garden, clock) {
 		clock.times.set(el.id, t);
 		p.push();
 		p.translate(el.x * width, el.y * height);
-		// Plants near the pointer swell and sway more, easing in and out.
+		// Plants near the pointer swell a little, easing in and out; mood.react: false turns it off.
 		const r = unit * el.scale;
-		const near = pointerIn
-			? Math.max(0, 1 - Math.hypot(mx - el.x * width, my - el.y * height) / (r * 1.6))
-			: 0;
+		const near =
+			pointerIn && garden.mood.react !== false
+				? Math.max(0, 1 - Math.hypot(mx - el.x * width, my - el.y * height) / (r * 1.6))
+				: 0;
 		const prev = lean.get(el.id) ?? 0;
-		const l = prev + (near - prev) * Math.min(1, dt * 6);
+		const l = prev + (near - prev) * Math.min(1, dt * 3);
 		lean.set(el.id, l);
-		const wind = garden.mood.wind + l * 0.5;
-		const sway = wind * 0.3 * Math.sin(clock.sway * 0.9 + (el.seed % 628) / 100);
+		const sway = garden.mood.wind * 0.3 * Math.sin(clock.sway * 0.9 + (el.seed % 628) / 100);
 		p.rotate(el.rotation + sway);
-		p.scale(1 + 0.12 * l);
+		p.scale(1 + 0.04 * l);
 		DRAW[el.kind](p, el, r, t);
 		p.pop();
 	}

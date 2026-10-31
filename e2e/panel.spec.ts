@@ -78,6 +78,10 @@ test('with nothing selected the panel sets the garden mood', async ({ page }) =>
 	const glow = page.getByRole('button', { name: 'Glow' });
 	await glow.click();
 	await expect(glow).toHaveAttribute('aria-pressed', 'true');
+	const react = page.getByRole('button', { name: 'React to pointer' });
+	await expect(react).toHaveAttribute('aria-pressed', 'true');
+	await react.click();
+	await expect(react).toHaveAttribute('aria-pressed', 'false');
 	await page.getByRole('slider', { name: 'Wind' }).fill('0.6');
 	await expect(page.getByRole('slider', { name: 'Wind' })).toHaveValue('0.6');
 });

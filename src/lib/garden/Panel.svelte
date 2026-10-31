@@ -169,6 +169,14 @@
 			>
 				Glow
 			</button>
+			<button
+				type="button"
+				class="toggle"
+				aria-pressed={scene.mood.react}
+				onclick={() => scene.setMood({ react: !scene.mood.react })}
+			>
+				React to pointer
+			</button>
 		</fieldset>
 	{/if}
 </aside>
