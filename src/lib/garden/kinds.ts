@@ -79,8 +79,89 @@ const ribbon: Kind = {
 	}
 };
 
+const tree: Kind = {
+	label: 'Tree',
+	noun: 'tree',
+	draw(p, el, r, t) {
+		const rand = seeded(el.seed);
+		const depth = Math.max(4, Math.min(9, Math.round((6 + Math.floor(rand() * 2)) * el.density)));
+		const spread = 0.35 + rand() * 0.25;
+		const sway = 0.06 * Math.sin(t * 0.8);
+		const branch = (len: number, d: number) => {
+			p.stroke((el.hue + 20 + (depth - d) * 4) % 360, sat(el, 35), 60 + (depth - d) * 5, 0.9);
+			p.strokeWeight(Math.max(1, d * 0.9));
+			p.line(0, 0, 0, -len);
+			p.translate(0, -len);
+			if (d <= 1) {
+				p.noStroke();
+				p.fill(el.hue, sat(el, 70), 100, 0.85);
+				p.circle(0, 0, r * 0.07);
+				return;
+			}
+			for (const side of [-1, 1]) {
+				p.push();
+				p.rotate(side * spread + sway * (depth - d + 1));
+				branch(len * 0.72, d - 1);
+				p.pop();
+			}
+		};
+		p.push();
+		p.translate(0, r * 0.95);
+		branch(r * 0.55, depth);
+		p.pop();
+	}
+};
+
+const fireflies: Kind = {
+	label: 'Fireflies',
+	noun: 'firefly cloud',
+	draw(p, el, r, t) {
+		const rand = seeded(el.seed);
+		const count = Math.round((14 + Math.floor(rand() * 10)) * el.density);
+		const off = rand() * 1000;
+		p.noStroke();
+		for (let i = 0; i < count; i++) {
+			const x = (p.noise(off + i * 7.1, t * 0.15) - 0.5) * 2.2 * r;
+			const y = (p.noise(off + i * 7.1 + 50, t * 0.15) - 0.5) * 2.2 * r;
+			const blink = 0.5 + 0.5 * Math.sin(t * (1.5 + rand() * 2) + rand() * 6);
+			p.fill(el.hue, sat(el, 70), 100, 0.12 * blink);
+			p.circle(x, y, r * 0.22);
+			p.fill(el.hue, sat(el, 40), 100, 0.4 + 0.6 * blink);
+			p.circle(x, y, r * 0.05);
+		}
+	}
+};
+
+const flow: Kind = {
+	label: 'Flow',
+	noun: 'flow',
+	draw(p, el, r, t) {
+		const rand = seeded(el.seed);
+		const lines = Math.round((22 + Math.floor(rand() * 10)) * el.density);
+		const off = rand() * 1000;
+		p.noFill();
+		p.strokeWeight(1.4);
+		for (let i = 0; i < lines; i++) {
+			const a0 = rand() * Math.PI * 2;
+			const d0 = Math.sqrt(rand()) * r * 0.85;
+			let x = Math.cos(a0) * d0;
+			let y = Math.sin(a0) * d0;
+			p.stroke((el.hue + (i % 6) * 6) % 360, sat(el, 60), 100, 0.55);
+			p.beginShape();
+			for (let step = 0; step < 18; step++) {
+				p.vertex(x, y);
+				const angle = p.noise(off + x / r, y / r, t * 0.12) * Math.PI * 4;
+				x += Math.cos(angle) * r * 0.05;
+				y += Math.sin(angle) * r * 0.05;
+				if (x * x + y * y > r * r) break;
+			}
+			p.endShape();
+		}
+	}
+};
+
 /** Saturation scaled by the element's vividness, capped at 100. */
 export const sat = (el: GardenElement, s: number) => Math.min(100, s * el.vividness);
 
-export const KINDS: Record<ElementKind, Kind> = { bloom, swarm, ribbon };
-export const KIND_ORDER: ElementKind[] = ['bloom', 'swarm', 'ribbon'];
+export const KINDS: Record<ElementKind, Kind> = { bloom, swarm, ribbon, tree, fireflies, flow };
+export const KIND_ORDER: ElementKind[] = ['bloom', 'swarm', 'ribbon', 'tree', 'fireflies', 'flow'];

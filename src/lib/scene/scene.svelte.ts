@@ -1,6 +1,6 @@
 import type { Placed } from './geometry.js';
 
-export type ElementKind = 'bloom' | 'swarm' | 'ribbon';
+export type ElementKind = 'bloom' | 'swarm' | 'ribbon' | 'tree' | 'fireflies' | 'flow';
 
 export interface Style {
 	/** Base hue in degrees. */

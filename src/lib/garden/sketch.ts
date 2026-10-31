@@ -3,6 +3,7 @@ import { elementRadius } from '#lib/scene/geometry.js';
 import type { Scene } from '#lib/scene/scene.svelte.js';
 import { BACKDROPS } from './backdrops.js';
 import { KINDS } from './kinds.js';
+import { renderThumbnails } from './thumbnails.svelte.js';
 
 export function gardenSketch(scene: Scene) {
 	// Each element keeps its own clock, so changing its speed does not jump its animation.
@@ -12,6 +13,7 @@ export function gardenSketch(scene: Scene) {
 		p.setup = () => {
 			p.createCanvas(100, 100);
 			p.colorMode(p.HSB, 360, 100, 100, 1);
+			renderThumbnails(p);
 		};
 		p.draw = () => {
 			// p5 2's width/height are getters; read them once per frame.
