@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Sketch } from 'svelte-p5-components';
+	import { ExportButton } from 'svelte-p5-components/export';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { elementRadius, hitTest, smoothPath, strokeFromPath } from '#lib/scene/geometry.js';
 	import type { Brush, Scene } from '#lib/scene/scene.svelte.js';
@@ -49,6 +50,8 @@
 			icon: Maximize2
 		}
 	] as const;
+	// Poster export renders at 3x the canvas's CSS size; the DOM overlay never appears in it.
+	const POSTER = { scale: 3, filename: 'p5-garden.png' };
 	const PILL_GAP = 14;
 	const PILL_HEIGHT = 44;
 	let gesture: Gesture | null = null;
@@ -83,7 +86,7 @@
 	}
 
 	function onStageDown(e: PointerEvent) {
-		if (e.button !== 0) return;
+		if (e.button !== 0 || (e.target as Element).closest('button')) return;
 		const pt = local(e);
 		if (tool === 'paint') {
 			scene.select(null);
@@ -200,41 +203,38 @@
 	onpointercancel={onUp}
 	onkeydown={onKey}
 >
-	<Sketch
-		{sketch}
-		{description}
-		{bridge}
-		loop={prefersReducedMotion.current ? 'demand' : 'always'}
-	/>
-	{#if selection}
-		<div
-			class="selection"
-			data-testid="selection"
-			style="left: {selection.cx}px; top: {selection.cy}px; width: {selection.r *
-				2}px; height: {selection.r * 2}px; transform: translate(-50%, -50%) rotate({selection.el
-				.rotation}rad);"
-		></div>
-		<!-- Pointer grips; the stage's keyboard shortcuts cover the same actions. -->
-		<div
-			class="pill"
-			data-testid="handles"
-			aria-hidden="true"
-			style="left: {selection.pillLeft}px; top: {selection.pillTop}px;"
-		>
-			{#each GRIPS as grip (grip.id)}
-				<div
-					class="grip {grip.id}"
-					role="presentation"
-					data-testid="{grip.id}-handle"
-					title={grip.title}
-					onpointerdown={(e) => onGripDown(e, grip.id)}
-				>
-					<grip.icon size={16} strokeWidth={2.25} />
-					<span>{grip.label}</span>
-				</div>
-			{/each}
-		</div>
-	{/if}
+	<Sketch {sketch} {description} {bridge} loop={prefersReducedMotion.current ? 'demand' : 'always'}>
+		<ExportButton position="top-right" options={POSTER} class="poster">Save poster</ExportButton>
+		{#if selection}
+			<div
+				class="selection"
+				data-testid="selection"
+				style="left: {selection.cx}px; top: {selection.cy}px; width: {selection.r *
+					2}px; height: {selection.r * 2}px; transform: translate(-50%, -50%) rotate({selection.el
+					.rotation}rad);"
+			></div>
+			<!-- Pointer grips; the stage's keyboard shortcuts cover the same actions. -->
+			<div
+				class="pill"
+				data-testid="handles"
+				aria-hidden="true"
+				style="left: {selection.pillLeft}px; top: {selection.pillTop}px;"
+			>
+				{#each GRIPS as grip (grip.id)}
+					<div
+						class="grip {grip.id}"
+						role="presentation"
+						data-testid="{grip.id}-handle"
+						title={grip.title}
+						onpointerdown={(e) => onGripDown(e, grip.id)}
+					>
+						<grip.icon size={16} strokeWidth={2.25} />
+						<span>{grip.label}</span>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	</Sketch>
 </div>
 
 <style>
@@ -259,6 +259,21 @@
 		box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
 		border-radius: 50%;
 		pointer-events: none;
+	}
+	.stage :global(.poster) {
+		padding: 0.5rem 0.875rem;
+		border: 1px solid rgb(165 180 252 / 0.5);
+		border-radius: 999px;
+		background: rgb(15 23 42 / 0.85);
+		color: #e2e8f0;
+		font: inherit;
+		font-size: 0.8125rem;
+		cursor: pointer;
+		backdrop-filter: blur(6px);
+		z-index: 2;
+	}
+	.stage :global(.poster:hover) {
+		background: #4f46e5;
 	}
 	.pill {
 		position: absolute;

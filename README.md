@@ -20,10 +20,6 @@ p5 garden is a working example of the library's patterns, so each choice below l
 | `width`/`height` read once per frame                      | p5 2 performance advice                | [p5 1 to 2 pitfalls](https://svelte-p5.dev/docs/p5-2-pitfalls)        |
 | p5 draws pixels; selection, panels and palette are Svelte | The library's governing rule           | [Three layers](https://svelte-p5.dev/docs/architecture)               |
 
-Not used yet, and planned: poster export with `downloadCanvas` / `<ExportButton>`
-([Exporting images and frames](https://svelte-p5.dev/docs/export)), and moving the selection overlay into
-`<Sketch>`'s `children` snippet with `getSketchContext()` ([Sketch context](https://svelte-p5.dev/docs/sketch-context)).
-
 ## Run it
 
 ```sh
