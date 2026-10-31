@@ -3,7 +3,7 @@ import { compile } from 'svelte/compiler';
 import { gardenData, playgroundLink, p5Sketch, sketchBody, svelteComponent } from './codegen.js';
 
 const garden = {
-	mood: { backdrop: 'dusk' as const, wind: 0.4, glow: true },
+	mood: { backdrop: 'dusk' as const, wind: 0.4, glow: true, react: true },
 	elements: [
 		{
 			id: 'bloom-1',
@@ -104,17 +104,20 @@ describe('code generation', () => {
 	});
 
 	it('draws plants near the pointer larger, and plants far away at their own size', () => {
-		const run = (x: number) => {
+		const run = (x: number, react = true) => {
 			const { p, scales } = fakeP5();
-			new Function(
-				'p',
-				sketchBody({ ...garden, elements: [{ ...garden.elements[0], x, y: 0.5 }] })
-			)(p);
+			const g = {
+				mood: { ...garden.mood, react },
+				elements: [{ ...garden.elements[0], x, y: 0.5 }]
+			};
+			new Function('p', sketchBody(g))(p);
 			p.setup();
 			for (let i = 0; i < 30; i++) p.draw();
 			return scales.at(-1)!;
 		};
-		expect(run(0.5)).toBeGreaterThan(1.05);
+		expect(run(0.5)).toBeGreaterThan(1.02);
+		expect(run(0.5)).toBeLessThanOrEqual(1.04);
 		expect(run(0.05)).toBe(1);
+		expect(run(0.5, false)).toBe(1);
 	});
 });
