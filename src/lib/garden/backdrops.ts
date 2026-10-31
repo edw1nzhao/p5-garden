@@ -1,4 +1,5 @@
 import type { Backdrop } from '#lib/scene/scene.svelte.js';
+import { BACKDROPS as ART } from './art.js';
 
 export interface BackdropStyle {
 	label: string;
@@ -11,15 +12,30 @@ export interface BackdropStyle {
 }
 
 export const BACKDROPS: Record<Backdrop, BackdropStyle> = {
-	night: { label: 'Night', colors: ['#0b0f19', '#111827'], light: false, words: 'a dark night' },
-	dusk: { label: 'Dusk', colors: ['#1e1236', '#5a2a1f'], light: false, words: 'a dusk sky' },
+	night: {
+		label: 'Night',
+		colors: ART['night'].colors,
+		light: ART['night'].light,
+		words: 'a dark night'
+	},
+	dusk: {
+		label: 'Dusk',
+		colors: ART['dusk'].colors,
+		light: ART['dusk'].light,
+		words: 'a dusk sky'
+	},
 	'deep-sea': {
 		label: 'Deep sea',
-		colors: ['#03141f', '#0b3a4a'],
-		light: false,
+		colors: ART['deep-sea'].colors,
+		light: ART['deep-sea'].light,
 		words: 'deep water'
 	},
-	paper: { label: 'Paper', colors: ['#f5f0e6', '#ebe4d6'], light: true, words: 'warm paper' }
+	paper: {
+		label: 'Paper',
+		colors: ART['paper'].colors,
+		light: ART['paper'].light,
+		words: 'warm paper'
+	}
 };
 
 export const BACKDROP_ORDER: Backdrop[] = ['night', 'dusk', 'deep-sea', 'paper'];

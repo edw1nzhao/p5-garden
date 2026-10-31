@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { Sketch } from 'svelte-p5-components';
 	import { ExportButton } from 'svelte-p5-components/export';
 	import { prefersReducedMotion } from 'svelte/motion';
@@ -14,7 +15,8 @@
 		element = $bindable(),
 		tool = 'arrange',
 		brush = 'vine',
-		stack = $bindable(null)
+		stack = $bindable(null),
+		actions
 	}: {
 		scene: Scene;
 		element?: HTMLDivElement;
@@ -22,6 +24,8 @@
 		brush?: Brush;
 		/** Where the selection sits among the plants under the last click, when there are several. */
 		stack?: { index: number; total: number } | null;
+		/** Extra buttons shown beside Save poster, over the canvas. */
+		actions?: Snippet;
 	} = $props();
 
 	// A click (no drag) on the already-selected plant steps to the next one under the pointer.
@@ -231,6 +235,7 @@
 >
 	<Sketch {sketch} {description} {bridge} loop={prefersReducedMotion.current ? 'demand' : 'always'}>
 		<div class="actions">
+			{@render actions?.()}
 			<ExportButton position="static" options={POSTER} class="poster">Save poster</ExportButton>
 		</div>
 		{#if selection}
@@ -294,8 +299,13 @@
 		top: 16px;
 		right: 16px;
 		z-index: 2;
+		display: flex;
+		gap: 8px;
 	}
 	.stage :global(.poster) {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
 		padding: 0.5rem 0.875rem;
 		border: 1px solid rgb(165 180 252 / 0.5);
 		border-radius: 999px;
