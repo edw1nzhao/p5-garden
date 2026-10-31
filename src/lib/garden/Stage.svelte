@@ -1,14 +1,9 @@
 <script lang="ts">
 	import { Sketch } from 'svelte-p5-components';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import {
-		BASE_RADIUS,
-		elementRadius,
-		hitTest,
-		smoothPath,
-		strokeFromPath
-	} from '#lib/scene/geometry.js';
+	import { elementRadius, hitTest, smoothPath, strokeFromPath } from '#lib/scene/geometry.js';
 	import type { Brush, Scene } from '#lib/scene/scene.svelte.js';
+	import { Maximize2, Move, RotateCw } from '@lucide/svelte';
 	import { BACKDROPS } from './backdrops.js';
 	import { KINDS } from './kinds.js';
 	import { gardenSketch } from './sketch.js';
@@ -39,13 +34,35 @@
 	};
 
 	type Gesture =
-		{ mode: 'move'; id: string; dx: number; dy: number } | { mode: 'scale' | 'rotate'; id: string };
+		| { mode: 'move'; id: string; dx: number; dy: number }
+		| { mode: 'scale'; id: string; startScale: number; startDist: number }
+		| { mode: 'rotate'; id: string; lastAngle: number };
+	type Grip = 'move' | 'rotate' | 'scale';
+
+	const GRIPS = [
+		{ id: 'move', label: 'Move', title: 'Move: drag, or use the arrow keys', icon: Move },
+		{ id: 'rotate', label: 'Turn', title: 'Turn: drag around, or press [ and ]', icon: RotateCw },
+		{
+			id: 'scale',
+			label: 'Resize',
+			title: 'Resize: drag in or out, or press + and -',
+			icon: Maximize2
+		}
+	] as const;
+	const PILL_GAP = 14;
+	const PILL_HEIGHT = 44;
 	let gesture: Gesture | null = null;
 
 	const selection = $derived.by(() => {
 		const el = scene.selected;
 		if (!el || !width) return null;
-		return { el, cx: el.x * width, cy: el.y * height, r: elementRadius(el, stage) };
+		const cx = el.x * width;
+		const cy = el.y * height;
+		const r = elementRadius(el, stage);
+		const below = cy + r + PILL_GAP + PILL_HEIGHT <= height;
+		const pillTop = below ? cy + r + PILL_GAP : cy - r - PILL_GAP - PILL_HEIGHT;
+		const pillLeft = Math.min(Math.max(cx, 110), Math.max(110, width - 110));
+		return { el, cx, cy, r, pillTop, pillLeft };
 	});
 
 	const description = $derived.by(() => {
@@ -84,10 +101,19 @@
 		element!.focus();
 	}
 
-	function onHandleDown(e: PointerEvent, mode: 'scale' | 'rotate') {
-		if (!scene.selected) return;
+	function onGripDown(e: PointerEvent, grip: Grip) {
+		if (!selection || e.button !== 0) return;
 		e.stopPropagation();
-		gesture = { mode, id: scene.selected.id };
+		const { el, cx, cy } = selection;
+		const pt = local(e);
+		if (grip === 'move') gesture = { mode: 'move', id: el.id, dx: cx - pt.x, dy: cy - pt.y };
+		if (grip === 'scale') {
+			const startDist = Math.max(8, Math.hypot(pt.x - cx, pt.y - cy));
+			gesture = { mode: 'scale', id: el.id, startScale: el.scale, startDist };
+		}
+		if (grip === 'rotate') {
+			gesture = { mode: 'rotate', id: el.id, lastAngle: Math.atan2(pt.y - cy, pt.x - cx) };
+		}
 		element!.setPointerCapture(e.pointerId);
 	}
 
@@ -109,11 +135,17 @@
 		const dx = pt.x - selection.cx;
 		const dy = pt.y - selection.cy;
 		if (gesture.mode === 'scale') {
-			scene.transform(gesture.id, {
-				scale: Math.hypot(dx, dy) / (BASE_RADIUS * Math.min(width, height))
-			});
+			const dist = Math.hypot(dx, dy);
+			scene.transform(gesture.id, { scale: (gesture.startScale * dist) / gesture.startDist });
 		} else {
-			scene.transform(gesture.id, { rotation: Math.atan2(dy, dx) + Math.PI / 2 });
+			// Step by the wrapped change so crossing atan2's ±π seam does not add a full turn.
+			const angle = Math.atan2(dy, dx);
+			const step = Math.atan2(
+				Math.sin(angle - gesture.lastAngle),
+				Math.cos(angle - gesture.lastAngle)
+			);
+			gesture.lastAngle = angle;
+			scene.transform(gesture.id, { rotation: selection.el.rotation + step });
 		}
 	}
 
@@ -181,19 +213,26 @@
 			style="left: {selection.cx}px; top: {selection.cy}px; width: {selection.r *
 				2}px; height: {selection.r * 2}px; transform: translate(-50%, -50%) rotate({selection.el
 				.rotation}rad);"
+		></div>
+		<!-- Pointer grips; the stage's keyboard shortcuts cover the same actions. -->
+		<div
+			class="pill"
+			data-testid="handles"
+			aria-hidden="true"
+			style="left: {selection.pillLeft}px; top: {selection.pillTop}px;"
 		>
-			<div
-				class="handle rotate"
-				aria-hidden="true"
-				data-testid="rotate-handle"
-				onpointerdown={(e) => onHandleDown(e, 'rotate')}
-			></div>
-			<div
-				class="handle scale"
-				aria-hidden="true"
-				data-testid="scale-handle"
-				onpointerdown={(e) => onHandleDown(e, 'scale')}
-			></div>
+			{#each GRIPS as grip (grip.id)}
+				<div
+					class="grip {grip.id}"
+					role="presentation"
+					data-testid="{grip.id}-handle"
+					title={grip.title}
+					onpointerdown={(e) => onGripDown(e, grip.id)}
+				>
+					<grip.icon size={16} strokeWidth={2.25} />
+					<span>{grip.label}</span>
+				</div>
+			{/each}
 		</div>
 	{/if}
 </div>
@@ -221,26 +260,41 @@
 		border-radius: 50%;
 		pointer-events: none;
 	}
-	.handle {
+	.pill {
 		position: absolute;
-		width: 18px;
-		height: 18px;
-		border-radius: 50%;
-		background: #fff;
-		box-shadow: 0 0 0 3px rgb(99 102 241 / 0.6);
-		pointer-events: auto;
+		display: flex;
+		gap: 2px;
+		padding: 3px;
+		transform: translateX(-50%);
+		border-radius: 999px;
+		background: rgb(15 23 42 / 0.92);
+		box-shadow:
+			0 0 0 1px rgb(165 180 252 / 0.5),
+			0 6px 20px rgb(0 0 0 / 0.45);
+		backdrop-filter: blur(6px);
+	}
+	.grip {
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		height: 38px;
+		padding: 0 0.75rem;
+		border-radius: 999px;
+		color: #e2e8f0;
+		font-size: 0.8125rem;
+		user-select: none;
 		touch-action: none;
 	}
-	.handle.rotate {
-		left: 50%;
-		top: -30px;
-		transform: translateX(-50%);
+	.grip:hover {
+		background: #4f46e5;
+	}
+	.grip.move {
+		cursor: move;
+	}
+	.grip.rotate {
 		cursor: grab;
 	}
-	.handle.scale {
-		right: -9px;
-		top: 50%;
-		transform: translateY(-50%);
+	.grip.scale {
 		cursor: nwse-resize;
 	}
 </style>
