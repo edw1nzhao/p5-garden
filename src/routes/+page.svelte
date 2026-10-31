@@ -94,6 +94,14 @@
 				? 'Paint mode: drag across the canvas to paint a living stroke.'
 				: 'Drag a seed onto the soil. Drag to move, use the handles to grow and turn, Delete to remove.'}
 		</p>
+		<nav class="links" aria-label="About">
+			<a href="https://svelte-p5.dev" target="_blank" rel="noopener noreferrer"
+				>Built with svelte-p5</a
+			>
+			<a href="https://github.com/edw1nzhao/p5-garden" target="_blank" rel="noopener noreferrer"
+				>Source</a
+			>
+		</nav>
 	</header>
 
 	<aside aria-label="Seeds and tools">
@@ -201,6 +209,20 @@
 		margin: 0;
 		font-size: 0.875rem;
 		color: #94a3b8;
+	}
+	.links {
+		margin-left: auto;
+		display: flex;
+		gap: 1rem;
+		font-size: 0.875rem;
+		white-space: nowrap;
+	}
+	.links a {
+		color: #a5b4fc;
+		text-underline-offset: 3px;
+	}
+	.links a:hover {
+		color: #c7d2fe;
 	}
 	aside {
 		grid-area: aside;

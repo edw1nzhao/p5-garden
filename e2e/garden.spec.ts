@@ -115,3 +115,15 @@ test('every seed in the palette has a rendered icon and can be planted', async (
 		'A garden on a dark night with 1 tree, 1 firefly cloud, 1 flow, slowly moving.'
 	);
 });
+
+test('the header links to svelte-p5 and to the source', async ({ page }) => {
+	const about = page.getByRole('navigation', { name: 'About' });
+	await expect(about.getByRole('link', { name: 'Built with svelte-p5' })).toHaveAttribute(
+		'href',
+		'https://svelte-p5.dev'
+	);
+	await expect(about.getByRole('link', { name: 'Source' })).toHaveAttribute(
+		'href',
+		/github\.com\/[\w-]+\/p5-garden$/
+	);
+});
