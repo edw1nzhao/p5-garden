@@ -81,3 +81,15 @@ test('with nothing selected the panel sets the garden mood', async ({ page }) =>
 	await page.getByRole('slider', { name: 'Wind' }).fill('0.6');
 	await expect(page.getByRole('slider', { name: 'Wind' })).toHaveValue('0.6');
 });
+
+test('on a phone the inspector opens only from Tune, so the canvas stays clear', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const inspector = page.getByRole('complementary', { name: 'Selected plant' });
+	await expect(inspector).toBeHidden();
+	const tune = page.getByRole('button', { name: 'Tune' });
+	await tune.click();
+	await expect(tune).toHaveAttribute('aria-pressed', 'true');
+	await expect(inspector.getByRole('heading', { name: 'Bloom' })).toBeVisible();
+});

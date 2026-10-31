@@ -3,16 +3,36 @@
 	import { KINDS, KIND_ORDER } from '#lib/garden/kinds.js';
 	import Stage from '#lib/garden/Stage.svelte';
 	import Panel from '#lib/garden/Panel.svelte';
+	import {
+		Brush as BrushIcon,
+		Leaf,
+		MousePointer2,
+		SlidersHorizontal,
+		Sparkles,
+		Spline
+	} from '@lucide/svelte';
 	import { thumbnails } from '#lib/garden/thumbnails.svelte.js';
 
 	const scene = new Scene();
 	let tool = $state<'arrange' | 'paint'>('arrange');
 	let brush = $state<Brush>('vine');
-	const BRUSHES: { id: Brush; label: string }[] = [
-		{ id: 'vine', label: 'Vine' },
-		{ id: 'shimmer', label: 'Shimmer' },
-		{ id: 'silk', label: 'Silk' }
-	];
+	let tuneOpen = $state(false);
+	const TOOLS = [
+		{ id: 'arrange', label: 'Arrange', hint: 'Select, move, turn and resize', icon: MousePointer2 },
+		{ id: 'paint', label: 'Paint', hint: 'Drag on the canvas to paint', icon: BrushIcon }
+	] as const;
+	const BRUSHES = [
+		{ id: 'vine', label: 'Vine', icon: Leaf },
+		{ id: 'shimmer', label: 'Shimmer', icon: Sparkles },
+		{ id: 'silk', label: 'Silk', icon: Spline }
+	] as const;
+	const hint = $derived(
+		tool === 'paint'
+			? 'Paint: drag across the canvas to paint a living stroke'
+			: scene.selected
+				? 'Drag to move · grips to turn and resize · Delete removes'
+				: 'Drag a seed onto the canvas, or click one to plant it'
+	);
 	let stageEl = $state<HTMLDivElement>();
 
 	interface Drag {
@@ -86,14 +106,13 @@
 
 <svelte:window onpointermove={onWindowMove} onpointerup={onWindowUp} />
 
-<div class="app" class:dragging={drag?.active}>
-	<header>
+<div class="app" class:dragging={drag?.active} class:tune-open={tuneOpen}>
+	<main>
+		<Stage {scene} {tool} {brush} bind:element={stageEl} />
+	</main>
+
+	<header class="brand glass">
 		<h1>p5 garden</h1>
-		<p>
-			{tool === 'paint'
-				? 'Paint mode: drag across the canvas to paint a living stroke.'
-				: 'Drag a seed onto the soil. Drag to move, use the handles to grow and turn, Delete to remove.'}
-		</p>
 		<nav class="links" aria-label="About">
 			<a href="https://svelte-p5.dev" target="_blank" rel="noopener noreferrer"
 				>Built with svelte-p5</a
@@ -104,32 +123,15 @@
 		</nav>
 	</header>
 
-	<aside aria-label="Seeds and tools">
-		<div class="tools" role="group" aria-label="Tool">
-			<button type="button" aria-pressed={tool === 'arrange'} onclick={() => (tool = 'arrange')}>
-				Arrange
-			</button>
-			<button type="button" aria-pressed={tool === 'paint'} onclick={() => (tool = 'paint')}>
-				Paint
-			</button>
-		</div>
-		{#if tool === 'paint'}
-			<div class="brushes" role="group" aria-label="Brush">
-				{#each BRUSHES as b (b.id)}
-					<button type="button" aria-pressed={brush === b.id} onclick={() => (brush = b.id)}>
-						{b.label}
-					</button>
-				{/each}
-			</div>
-		{/if}
-		<h2 class="section">Seeds</h2>
-		<ul>
+	<aside class="rail glass" aria-label="Seeds">
+		<ul class="seeds">
 			{#each KIND_ORDER as kind (kind)}
 				<li>
 					<button
 						type="button"
-						class="seed"
+						class="tile seed"
 						data-kind={kind}
+						title="Drag onto the canvas, or click to plant in the centre"
 						onpointerdown={(e) => onSeedDown(e, kind)}
 						onclick={() => onSeedClick(kind)}
 					>
@@ -138,208 +140,295 @@
 								class="icon"
 								src={thumbnails[kind]}
 								alt=""
-								width="36"
-								height="36"
+								width="40"
+								height="40"
 								draggable="false"
 							/>
 						{:else}
 							<span class="icon" aria-hidden="true"></span>
 						{/if}
-						{KINDS[kind].label}
+						<span>{KINDS[kind].label}</span>
 					</button>
 				</li>
 			{/each}
 		</ul>
 	</aside>
 
-	<main>
-		<Stage {scene} {tool} {brush} bind:element={stageEl} />
-	</main>
+	<div class="dock">
+		<p class="hint" aria-live="polite">{hint}</p>
+		<div class="toolbar glass" role="toolbar" aria-label="Tools">
+			{#each TOOLS as t (t.id)}
+				<button
+					type="button"
+					class="tool"
+					aria-pressed={tool === t.id}
+					title={t.hint}
+					onclick={() => (tool = t.id)}
+				>
+					<t.icon size={18} aria-hidden="true" />
+					<span>{t.label}</span>
+				</button>
+			{/each}
+			{#if tool === 'paint'}
+				<span class="sep" role="presentation"></span>
+				{#each BRUSHES as b (b.id)}
+					<button
+						type="button"
+						class="tool"
+						aria-pressed={brush === b.id}
+						onclick={() => (brush = b.id)}
+					>
+						<b.icon size={16} aria-hidden="true" />
+						<span>{b.label}</span>
+					</button>
+				{/each}
+			{/if}
+			<span class="sep tune-only" role="presentation"></span>
+			<button
+				type="button"
+				class="tool tune-only"
+				aria-pressed={tuneOpen}
+				aria-controls="inspector"
+				onclick={() => (tuneOpen = !tuneOpen)}
+			>
+				<SlidersHorizontal size={18} aria-hidden="true" />
+				<span>Tune</span>
+			</button>
+		</div>
+	</div>
 
-	<div class="panel-area">
+	<div id="inspector" class="inspector glass">
 		<Panel {scene} />
 	</div>
 
 	{#if drag?.active}
 		<div class="ghost" style="left: {drag.x}px; top: {drag.y}px;" aria-hidden="true">
 			{#if thumbnails[drag.kind]}
-				<img
-					class="icon"
-					src={thumbnails[drag.kind]}
-					alt=""
-					width="36"
-					height="36"
-					draggable="false"
-				/>
+				<img src={thumbnails[drag.kind]} alt="" width="56" height="56" draggable="false" />
 			{/if}
 		</div>
 	{/if}
 </div>
 
 <style>
-	:global(html, body) {
-		margin: 0;
-		height: 100%;
-		background: #0b0f19;
-		color: #e2e8f0;
-		font-family: system-ui, sans-serif;
-	}
 	.app {
-		display: grid;
-		grid-template: 'header header header' auto 'aside main panel' 1fr / 12rem 1fr 16rem;
+		position: relative;
 		height: 100dvh;
+		overflow: hidden;
 	}
 	.app.dragging {
 		cursor: grabbing;
 		user-select: none;
 	}
-	header {
-		grid-area: header;
+	main {
+		position: absolute;
+		inset: 0;
+	}
+	.brand {
+		position: absolute;
+		top: calc(var(--space) * 4);
+		left: calc(var(--space) * 4);
 		display: flex;
 		align-items: baseline;
-		gap: 1.5rem;
-		padding: 0.75rem 1rem;
-		border-bottom: 1px solid #1e293b;
+		gap: calc(var(--space) * 4);
+		padding: calc(var(--space) * 2) calc(var(--space) * 4);
+		border-radius: var(--radius-pill);
 	}
 	h1 {
 		margin: 0;
-		font-size: 1.125rem;
-	}
-	header p {
-		margin: 0;
-		font-size: 0.875rem;
-		color: #94a3b8;
+		font-size: var(--text-lg);
+		letter-spacing: -0.01em;
 	}
 	.links {
-		margin-left: auto;
 		display: flex;
-		gap: 1rem;
-		font-size: 0.875rem;
+		gap: calc(var(--space) * 3);
+		font-size: var(--text-sm);
 		white-space: nowrap;
 	}
 	.links a {
-		color: #a5b4fc;
-		text-underline-offset: 3px;
+		color: var(--accent-soft);
+		text-decoration: none;
 	}
 	.links a:hover {
-		color: #c7d2fe;
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
-	aside {
-		grid-area: aside;
-		border-right: 1px solid #1e293b;
-		padding: 0.75rem;
+	.rail {
+		position: absolute;
+		top: calc(var(--space) * 18);
+		left: calc(var(--space) * 4);
+		max-height: calc(100dvh - var(--space) * 48);
+		width: calc(var(--space) * 20);
+		padding: calc(var(--space) * 2);
+		overflow-y: auto;
+		scrollbar-width: none;
 	}
-	.tools,
-	.brushes {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.25rem;
-		margin-bottom: 0.5rem;
-	}
-	.brushes {
-		grid-template-columns: 1fr 1fr 1fr;
-	}
-	.tools button,
-	.brushes button {
-		min-height: 2.25rem;
-		border: 1px solid #334155;
-		border-radius: 0.375rem;
-		background: #111827;
-		color: inherit;
-		font: inherit;
-		font-size: 0.8125rem;
-		cursor: pointer;
-	}
-	.tools button[aria-pressed='true'],
-	.brushes button[aria-pressed='true'] {
-		background: #4f46e5;
-		border-color: #818cf8;
-	}
-	.tools button:focus-visible,
-	.brushes button:focus-visible {
-		outline: 2px solid #a5b4fc;
-		outline-offset: 2px;
-	}
-	.section {
-		margin: 0.75rem 0 0.5rem;
-		font-size: 0.75rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: #94a3b8;
-	}
-	ul {
+	.seeds {
 		list-style: none;
 		margin: 0;
 		padding: 0;
 		display: grid;
-		gap: 0.5rem;
+		gap: var(--space);
 	}
-	.seed {
+	.tile {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
-		gap: 0.625rem;
+		gap: var(--space);
 		width: 100%;
-		min-height: 2.75rem;
-		padding: 0 0.75rem;
-		border: 1px solid #334155;
-		border-radius: 0.5rem;
-		background: #111827;
-		color: inherit;
+		padding: calc(var(--space) * 2) var(--space);
+		border: 1px solid transparent;
+		border-radius: var(--radius-md);
+		background: transparent;
+		color: var(--fg);
 		font: inherit;
+		font-size: var(--text-xs);
 		cursor: grab;
 		touch-action: none;
+		transition: background 120ms;
 	}
-	.seed:hover {
-		border-color: #6366f1;
-	}
-	.seed:focus-visible {
-		outline: 2px solid #a5b4fc;
-		outline-offset: 2px;
-	}
-	main {
-		grid-area: main;
-		min-height: 0;
-	}
-	.panel-area {
-		grid-area: panel;
-		min-height: 0;
-		border-left: 1px solid #1e293b;
-		display: grid;
+	.tile:hover {
+		background: var(--surface-hover);
 	}
 	.icon {
-		width: 2.25rem;
-		height: 2.25rem;
-		border-radius: 0.375rem;
-		flex-shrink: 0;
-		background: #111827;
+		width: 40px;
+		height: 40px;
+		border-radius: var(--radius-sm);
+		background: var(--bg);
 		pointer-events: none;
+	}
+	.dock {
+		position: absolute;
+		left: 50%;
+		bottom: calc(var(--space) * 4);
+		transform: translateX(-50%);
+		display: grid;
+		justify-items: center;
+		gap: calc(var(--space) * 2);
+	}
+	.hint {
+		margin: 0;
+		font-size: var(--text-xs);
+		color: var(--fg-muted);
+		white-space: nowrap;
+		text-shadow: 0 1px 4px rgb(0 0 0 / 0.8);
+		pointer-events: none;
+	}
+	.toolbar {
+		display: flex;
+		align-items: center;
+		gap: var(--space);
+		padding: var(--space);
+		border-radius: var(--radius-pill);
+	}
+	.tool {
+		display: flex;
+		align-items: center;
+		gap: calc(var(--space) * 2);
+		height: calc(var(--space) * 10);
+		padding: 0 calc(var(--space) * 4);
+		border: 0;
+		border-radius: var(--radius-pill);
+		background: transparent;
+		color: var(--fg);
+		font: inherit;
+		font-size: var(--text-sm);
+		cursor: pointer;
+		transition: background 120ms;
+	}
+	.tool:hover {
+		background: var(--surface-hover);
+	}
+	.tool[aria-pressed='true'] {
+		background: var(--accent-strong);
+	}
+	.tile:focus-visible,
+	.tool:focus-visible {
+		outline: 2px solid var(--accent-soft);
+		outline-offset: 2px;
+	}
+	.sep {
+		width: 1px;
+		height: calc(var(--space) * 6);
+		background: var(--glass-border);
+	}
+	.tune-only {
+		display: none;
+	}
+	.inspector {
+		position: absolute;
+		top: calc(var(--space) * 18);
+		right: calc(var(--space) * 4);
+		width: calc(var(--space) * 68);
+		max-height: calc(100dvh - var(--space) * 48);
+		display: grid;
+		overflow: hidden;
 	}
 	.ghost {
 		position: fixed;
 		pointer-events: none;
-		transform: translate(-50%, -50%) scale(1.75);
-		opacity: 0.85;
+		transform: translate(-50%, -50%);
+		opacity: 0.9;
 		z-index: 10;
+		filter: drop-shadow(0 8px 16px rgb(0 0 0 / 0.5));
+	}
+	.ghost img {
+		border-radius: var(--radius-md);
 	}
 	@media (max-width: 40rem) {
-		.app {
-			grid-template: 'header' auto 'aside' auto 'main' 1fr 'panel' auto / 1fr;
-		}
-		header p {
+		.links {
 			display: none;
 		}
-		aside {
-			border-right: 0;
-			border-bottom: 1px solid #1e293b;
+		.rail {
+			top: auto;
+			left: calc(var(--space) * 2);
+			right: calc(var(--space) * 2);
+			bottom: calc(var(--space) * 20);
+			width: auto;
+			max-height: none;
+			overflow-x: auto;
 		}
-		ul {
+		.seeds {
 			grid-auto-flow: column;
+			grid-auto-columns: calc(var(--space) * 16);
 		}
-		.panel-area {
-			border-left: 0;
-			border-top: 1px solid #1e293b;
-			max-height: 40dvh;
+		.dock {
+			left: calc(var(--space) * 2);
+			right: calc(var(--space) * 2);
+			bottom: calc(var(--space) * 2);
+			transform: none;
+		}
+		.hint {
+			display: none;
+		}
+		.toolbar {
+			max-width: 100%;
+			overflow-x: auto;
+			scrollbar-width: none;
+		}
+		.tool {
+			padding: 0 calc(var(--space) * 3);
+		}
+		.tune-only {
+			display: flex;
+		}
+		.sep.tune-only {
+			display: block;
+		}
+		.inspector {
+			display: none;
+			top: auto;
+			left: calc(var(--space) * 2);
+			right: calc(var(--space) * 2);
+			bottom: calc(var(--space) * 18);
+			width: auto;
+			max-height: 50dvh;
+		}
+		.tune-open .inspector {
+			display: grid;
+		}
+		.tune-open .rail {
+			display: none;
 		}
 	}
 </style>
