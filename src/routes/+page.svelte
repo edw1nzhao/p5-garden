@@ -17,6 +17,7 @@
 	let tool = $state<'arrange' | 'paint'>('arrange');
 	let brush = $state<Brush>('vine');
 	let tuneOpen = $state(false);
+	let stack = $state<{ index: number; total: number } | null>(null);
 	const TOOLS = [
 		{ id: 'arrange', label: 'Arrange', hint: 'Select, move, turn and resize', icon: MousePointer2 },
 		{ id: 'paint', label: 'Paint', hint: 'Drag on the canvas to paint', icon: BrushIcon }
@@ -29,9 +30,11 @@
 	const hint = $derived(
 		tool === 'paint'
 			? 'Paint: drag across the canvas to paint a living stroke'
-			: scene.selected
-				? 'Drag to move · grips to turn and resize · Delete removes'
-				: 'Drag a seed onto the canvas, or click one to plant it'
+			: scene.selected && stack
+				? `Layer ${stack.index} of ${stack.total} here · click again for the next`
+				: scene.selected
+					? 'Drag to move · grips to turn and resize · Delete removes'
+					: 'Drag a seed onto the canvas, or click one to plant it'
 	);
 	let stageEl = $state<HTMLDivElement>();
 
@@ -108,7 +111,7 @@
 
 <div class="app" class:dragging={drag?.active} class:tune-open={tuneOpen}>
 	<main>
-		<Stage {scene} {tool} {brush} bind:element={stageEl} />
+		<Stage {scene} {tool} {brush} bind:element={stageEl} bind:stack />
 	</main>
 
 	<header class="brand glass">

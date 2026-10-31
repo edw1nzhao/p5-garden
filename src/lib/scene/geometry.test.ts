@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	elementRadius,
+	hitAll,
 	hitTest,
 	smoothPath,
 	strokeFromPath,
@@ -90,5 +91,20 @@ describe('smoothPath', () => {
 			{ x: 10, y: 0 }
 		];
 		expect(smoothPath(line, 3)).toEqual(line);
+	});
+});
+
+describe('hitAll', () => {
+	it('lists every element under a point, topmost first', () => {
+		const bottom = at(0.5, 0.5);
+		const middle = at(0.51, 0.5);
+		const top = at(0.52, 0.5);
+		const away = at(0.1, 0.1);
+		expect(hitAll([bottom, middle, away, top], 510, 250, stage).map((e) => e.id)).toEqual([
+			top.id,
+			middle.id,
+			bottom.id
+		]);
+		expect(hitAll([bottom], 50, 50, stage)).toEqual([]);
 	});
 });
