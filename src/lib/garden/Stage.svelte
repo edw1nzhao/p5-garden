@@ -3,6 +3,7 @@
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { BASE_RADIUS, elementRadius, hitTest } from '#lib/scene/geometry.js';
 	import type { Scene } from '#lib/scene/scene.svelte.js';
+	import { BACKDROPS } from './backdrops.js';
 	import { KINDS } from './kinds.js';
 	import { gardenSketch } from './sketch.js';
 
@@ -15,7 +16,7 @@
 	// Under 'demand', reading the elements deeply makes any scene change redraw.
 	const bridge = {
 		get state() {
-			return scene.elements;
+			return { elements: scene.elements, mood: scene.mood };
 		}
 	};
 
@@ -30,14 +31,15 @@
 	});
 
 	const description = $derived.by(() => {
-		if (scene.elements.length === 0) return 'An empty, dark garden waiting for seeds.';
+		const place = BACKDROPS[scene.mood.backdrop].words;
+		if (scene.elements.length === 0) return `An empty garden on ${place}, waiting for seeds.`;
 		const counts = new Map<string, number>();
 		for (const el of scene.elements) {
 			const noun = KINDS[el.kind].noun;
 			counts.set(noun, (counts.get(noun) ?? 0) + 1);
 		}
 		const parts = [...counts].map(([noun, n]) => `${n} ${noun}${n > 1 ? 's' : ''}`);
-		return `A dark garden with ${parts.join(', ')}, slowly moving.`;
+		return `A garden on ${place} with ${parts.join(', ')}, slowly moving.`;
 	});
 
 	function local(e: PointerEvent) {
@@ -172,7 +174,8 @@
 	}
 	.selection {
 		position: absolute;
-		border: 1.5px dashed rgb(255 255 255 / 0.55);
+		border: 1.5px dashed rgb(255 255 255 / 0.7);
+		box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
 		border-radius: 50%;
 		pointer-events: none;
 	}

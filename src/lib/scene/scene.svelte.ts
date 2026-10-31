@@ -24,6 +24,16 @@ export const STYLE_RANGES = {
 	speed: { min: 0, max: 3 }
 } as const;
 
+export type Backdrop = 'night' | 'dusk' | 'deep-sea' | 'paper';
+
+export interface Mood {
+	backdrop: Backdrop;
+	/** 0 is still air; 1 sways every element noticeably. */
+	wind: number;
+	/** Additive blending, which reads as light on dark backdrops. */
+	glow: boolean;
+}
+
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 export const MIN_SCALE = 0.3;
 export const MAX_SCALE = 3;
@@ -31,6 +41,7 @@ export const MAX_SCALE = 3;
 export class Scene {
 	elements = $state<GardenElement[]>([]);
 	selectedId = $state<string | null>(null);
+	mood = $state<Mood>({ backdrop: 'night', wind: 0, glow: false });
 	selected = $derived(this.elements.find((e) => e.id === this.selectedId) ?? null);
 
 	#random: () => number;
@@ -85,6 +96,12 @@ export class Scene {
 			const v = change[key];
 			if (v !== undefined) el[key] = clamp(v, STYLE_RANGES[key].min, STYLE_RANGES[key].max);
 		}
+	}
+
+	setMood(change: Partial<Mood>) {
+		if (change.backdrop !== undefined) this.mood.backdrop = change.backdrop;
+		if (change.wind !== undefined) this.mood.wind = clamp(change.wind, 0, 1);
+		if (change.glow !== undefined) this.mood.glow = change.glow;
 	}
 
 	reroll(id: string) {

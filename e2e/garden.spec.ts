@@ -30,7 +30,7 @@ test('dropping a seed plants it where it was dropped', async ({ page }) => {
 	expect(sel.cx).toBeCloseTo(s.x + s.width * 0.3, 0);
 	expect(sel.cy).toBeCloseTo(s.y + s.height * 0.4, 0);
 	await expect(stage(page).locator('canvas [aria-label="Canvas Description"]')).toHaveText(
-		'A dark garden with 1 bloom, slowly moving.'
+		'A garden on a dark night with 1 bloom, slowly moving.'
 	);
 });
 

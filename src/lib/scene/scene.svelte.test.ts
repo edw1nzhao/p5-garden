@@ -68,4 +68,13 @@ describe('Scene', () => {
 		scene.reroll(id);
 		expect(scene.elements[0].seed).not.toBe(before);
 	});
+
+	it('starts with a calm night mood and keeps mood settings in range', () => {
+		const scene = new Scene();
+		expect(scene.mood).toEqual({ backdrop: 'night', wind: 0, glow: false });
+		scene.setMood({ backdrop: 'dusk', wind: 3, glow: true });
+		expect(scene.mood).toEqual({ backdrop: 'dusk', wind: 1, glow: true });
+		scene.setMood({ wind: -1 });
+		expect(scene.mood.wind).toBe(0);
+	});
 });

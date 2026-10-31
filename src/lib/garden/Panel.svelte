@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { MAX_SCALE, MIN_SCALE, STYLE_RANGES, type Scene } from '#lib/scene/scene.svelte.js';
+	import { BACKDROPS, BACKDROP_ORDER } from './backdrops.js';
 	import { KINDS } from './kinds.js';
 
 	let { scene }: { scene: Scene } = $props();
@@ -124,7 +125,51 @@
 			<button type="button" class="danger" onclick={() => scene.remove(el.id)}>Delete</button>
 		</div>
 	{:else}
-		<p class="empty">Select a plant to tune its colour, shape and speed.</p>
+		<h2>Garden</h2>
+		<p class="empty">Select a plant to tune it. These settings change the whole garden.</p>
+
+		<fieldset>
+			<legend>Backdrop</legend>
+			<div class="backdrops">
+				{#each BACKDROP_ORDER as id (id)}
+					{@const b = BACKDROPS[id]}
+					<button
+						type="button"
+						class="backdrop"
+						class:light={b.light}
+						style="--top: {b.colors[0]}; --bottom: {b.colors[1]}"
+						aria-pressed={scene.mood.backdrop === id}
+						onclick={() => scene.setMood({ backdrop: id })}
+					>
+						{b.label}
+					</button>
+				{/each}
+			</div>
+		</fieldset>
+
+		<fieldset>
+			<legend>Air</legend>
+			{@render slider(
+				'wind',
+				'Wind',
+				`${Math.round(scene.mood.wind * 100)}%`,
+				0,
+				1,
+				0.05,
+				scene.mood.wind,
+				(v) => scene.setMood({ wind: v })
+			)}
+			<button
+				type="button"
+				class="toggle"
+				aria-pressed={scene.mood.glow}
+				disabled={BACKDROPS[scene.mood.backdrop].light}
+				title={BACKDROPS[scene.mood.backdrop].light ? 'Glow needs a dark backdrop' : undefined}
+				onclick={() => scene.setMood({ glow: !scene.mood.glow })}
+			>
+				Glow
+			</button>
+		</fieldset>
 	{/if}
 </aside>
 
@@ -217,6 +262,49 @@
 	}
 	.preset[aria-pressed='true'] {
 		border-color: #fff;
+	}
+	.backdrops {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+	}
+	.backdrop {
+		min-height: 2.75rem;
+		border: 2px solid #334155;
+		border-radius: 0.5rem;
+		background: linear-gradient(var(--top), var(--bottom));
+		color: #fff;
+		font: inherit;
+		font-size: 0.8125rem;
+		text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+		cursor: pointer;
+	}
+	.backdrop.light {
+		color: #1f2937;
+		text-shadow: none;
+	}
+	.backdrop[aria-pressed='true'] {
+		border-color: #a5b4fc;
+	}
+	.toggle {
+		justify-self: start;
+		min-height: 2.25rem;
+		padding: 0 0.875rem;
+		border: 1px solid #334155;
+		border-radius: 999px;
+		background: #111827;
+		color: inherit;
+		font: inherit;
+		font-size: 0.875rem;
+		cursor: pointer;
+	}
+	.toggle[aria-pressed='true'] {
+		background: #4f46e5;
+		border-color: #818cf8;
+	}
+	.toggle:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 	.actions {
 		display: flex;

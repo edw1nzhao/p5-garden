@@ -51,3 +51,33 @@ test('every panel slider has an accessible name', async ({ page }) => {
 		await expect(page.getByRole('slider', { name, exact: true })).toHaveCount(1);
 	}
 });
+
+const cornerPixel = (page: Page) =>
+	page
+		.getByRole('application')
+		.locator('canvas')
+		.evaluate((c: HTMLCanvasElement) => {
+			const ctx = c.getContext('2d')!;
+			return [...ctx.getImageData(4, 4, 1, 1).data.slice(0, 3)];
+		});
+
+test('with nothing selected the panel sets the garden mood', async ({ page }) => {
+	const s = (await page.getByRole('application').boundingBox())!;
+	await page.mouse.click(s.x + 15, s.y + 15);
+	const before = await cornerPixel(page);
+	const paper = page.getByRole('button', { name: 'Paper' });
+	await paper.click();
+	await expect(paper).toHaveAttribute('aria-pressed', 'true');
+	await expect.poll(() => cornerPixel(page)).not.toEqual(before);
+	await expect(page.getByRole('button', { name: 'Glow' })).toBeDisabled();
+	await expect(
+		page.getByRole('application').locator('canvas [aria-label="Canvas Description"]')
+	).toContainText('warm paper');
+
+	await page.getByRole('button', { name: 'Dusk' }).click();
+	const glow = page.getByRole('button', { name: 'Glow' });
+	await glow.click();
+	await expect(glow).toHaveAttribute('aria-pressed', 'true');
+	await page.getByRole('slider', { name: 'Wind' }).fill('0.6');
+	await expect(page.getByRole('slider', { name: 'Wind' })).toHaveValue('0.6');
+});
