@@ -160,8 +160,93 @@ const flow: Kind = {
 	}
 };
 
+/** Points and unit normals along a painted path, scaled to radius `r`. */
+function walk(path: number[], r: number) {
+	const n = path.length / 2;
+	const out: { x: number; y: number; nx: number; ny: number }[] = [];
+	for (let i = 0; i < n; i++) {
+		const a = Math.max(0, i - 1);
+		const b = Math.min(n - 1, i + 1);
+		const dx = path[2 * b] - path[2 * a];
+		const dy = path[2 * b + 1] - path[2 * a + 1];
+		const len = Math.hypot(dx, dy) || 1;
+		out.push({ x: path[2 * i] * r, y: path[2 * i + 1] * r, nx: -dy / len, ny: dx / len });
+	}
+	return out;
+}
+
+const stroke: Kind = {
+	label: 'Paint',
+	noun: 'painted stroke',
+	draw(p, el, r, t) {
+		const pts = walk(el.path ?? [], r);
+		if (pts.length < 2) return;
+		const rand = seeded(el.seed);
+		if (el.brush === 'shimmer') {
+			p.noStroke();
+			const per = Math.max(1, Math.round(2 * el.density));
+			pts.forEach((pt, i) => {
+				for (let k = 0; k < per; k++) {
+					const jitter = (rand() - 0.5) * r * 0.12;
+					const twinkle = 0.5 + 0.5 * Math.sin(t * 3 + i * 0.7 + k * 2);
+					p.fill((el.hue + k * 12) % 360, sat(el, 45), 100, 0.25 + 0.75 * twinkle);
+					p.circle(pt.x + pt.nx * jitter, pt.y + pt.ny * jitter, 1.5 + twinkle * r * 0.035);
+				}
+			});
+			return;
+		}
+		if (el.brush === 'silk') {
+			const strands = Math.max(1, Math.round(4 * el.density));
+			const off = rand() * 1000;
+			p.noFill();
+			for (let s = 0; s < strands; s++) {
+				p.stroke((el.hue + s * 8) % 360, sat(el, 55), 100, 0.55);
+				p.strokeWeight(1.2);
+				p.beginShape();
+				pts.forEach((pt, i) => {
+					const d = (p.noise(off + i * 0.08, s * 0.7, t * 0.4) - 0.5) * r * 0.3;
+					p.vertex(pt.x + pt.nx * d, pt.y + pt.ny * d);
+				});
+				p.endShape();
+			}
+			return;
+		}
+		const swayed = pts.map((pt, i) => {
+			const d = Math.sin(t * 1.2 + i * 0.25) * r * 0.03 * (i / pts.length);
+			return { ...pt, x: pt.x + pt.nx * d, y: pt.y + pt.ny * d };
+		});
+		p.noFill();
+		p.stroke((el.hue + 10) % 360, sat(el, 50), 70, 0.95);
+		p.strokeWeight(2.5);
+		p.beginShape();
+		for (const pt of swayed) p.vertex(pt.x, pt.y);
+		p.endShape();
+		const every = Math.max(2, Math.round(6 / el.density));
+		p.noStroke();
+		swayed.forEach((pt, i) => {
+			if (i % every !== 0 || i === 0) return;
+			const side = (i / every) % 2 ? 1 : -1;
+			p.push();
+			p.translate(pt.x, pt.y);
+			p.rotate(Math.atan2(pt.ny * side, pt.nx * side));
+			p.fill(el.hue, sat(el, 65), 90, 0.85);
+			p.ellipse(r * 0.05, 0, r * 0.1, r * 0.045);
+			p.pop();
+		});
+	}
+};
+
 /** Saturation scaled by the element's vividness, capped at 100. */
 export const sat = (el: GardenElement, s: number) => Math.min(100, s * el.vividness);
 
-export const KINDS: Record<ElementKind, Kind> = { bloom, swarm, ribbon, tree, fireflies, flow };
+export const KINDS: Record<ElementKind, Kind> = {
+	bloom,
+	swarm,
+	ribbon,
+	tree,
+	fireflies,
+	flow,
+	stroke
+};
+/** Kinds offered as seeds in the palette; painted strokes come from the brush. */
 export const KIND_ORDER: ElementKind[] = ['bloom', 'swarm', 'ribbon', 'tree', 'fireflies', 'flow'];

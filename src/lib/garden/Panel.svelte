@@ -50,7 +50,7 @@
 
 <aside class="panel" aria-label="Selected plant">
 	{#if el}
-		<h2>{KINDS[el.kind].label}</h2>
+		<h2>{el.kind === 'stroke' ? `Painted ${el.brush}` : KINDS[el.kind].label}</h2>
 
 		<fieldset>
 			<legend>Colour</legend>

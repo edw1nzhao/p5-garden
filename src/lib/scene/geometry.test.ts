@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { elementRadius, hitTest, toLocal, type Placed } from './geometry.js';
+import {
+	elementRadius,
+	hitTest,
+	smoothPath,
+	strokeFromPath,
+	toLocal,
+	type Placed
+} from './geometry.js';
 
 const stage = { width: 1000, height: 500 };
 const at = (x: number, y: number, extra: Partial<Placed> = {}): Placed => ({
@@ -30,5 +37,58 @@ describe('geometry', () => {
 		expect(hitTest([bottom, top], 515, 250, stage)?.id).toBe(top.id);
 		expect(hitTest([bottom, top], 445, 250, stage)?.id).toBe(bottom.id);
 		expect(hitTest([bottom, top], 50, 50, stage)).toBeNull();
+	});
+});
+
+describe('strokeFromPath', () => {
+	it('centres a stroke on its points and sizes it to reach the farthest one', () => {
+		const shape = strokeFromPath(
+			[
+				{ x: 400, y: 250 },
+				{ x: 500, y: 250 },
+				{ x: 600, y: 250 }
+			],
+			stage
+		);
+		expect(shape.x).toBeCloseTo(0.5);
+		expect(shape.y).toBeCloseTo(0.5);
+		expect(shape.scale).toBeCloseTo(100 / 60);
+		expect(shape.path).toEqual([-1, 0, 0, 0, 1, 0]);
+	});
+
+	it('keeps points in place when the scale clamps, so the stroke draws where it was painted', () => {
+		const shape = strokeFromPath(
+			[
+				{ x: 499, y: 250 },
+				{ x: 501, y: 250 }
+			],
+			stage
+		);
+		expect(shape.scale).toBe(0.3);
+		const r = elementRadius({ id: 's', x: 0.5, y: 0.5, scale: shape.scale, rotation: 0 }, stage);
+		expect(shape.path[0] * r).toBeCloseTo(-1);
+	});
+});
+
+describe('smoothPath', () => {
+	it('rounds corners but keeps both ends of the stroke', () => {
+		const corner = [
+			{ x: 0, y: 0 },
+			{ x: 100, y: 0 },
+			{ x: 100, y: 100 }
+		];
+		const smooth = smoothPath(corner, 2);
+		expect(smooth[0]).toEqual(corner[0]);
+		expect(smooth.at(-1)).toEqual(corner[2]);
+		expect(smooth.length).toBeGreaterThan(corner.length);
+		expect(smooth.some((p) => p.x === 100 && p.y === 0)).toBe(false);
+	});
+
+	it('leaves paths too short to smooth alone', () => {
+		const line = [
+			{ x: 0, y: 0 },
+			{ x: 10, y: 0 }
+		];
+		expect(smoothPath(line, 3)).toEqual(line);
 	});
 });
