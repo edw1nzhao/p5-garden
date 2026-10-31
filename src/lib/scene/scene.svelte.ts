@@ -42,6 +42,15 @@ export interface Mood {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+interface Snapshot {
+	elements: GardenElement[];
+	mood: Mood;
+}
+
+/** Changes to the same thing within this window become one undo step (a drag, a slider sweep). */
+const MERGE_MS = 800;
+const HISTORY_LIMIT = 100;
+
 export class Scene {
 	elements = $state<GardenElement[]>([]);
 	selectedId = $state<string | null>(null);
@@ -51,17 +60,65 @@ export class Scene {
 	selected = $derived(this.elements.find((e) => e.id === this.selectedId) ?? null);
 
 	#random: () => number;
+	#now: () => number;
 	#count = 0;
+	#past = $state.raw<Snapshot[]>([]);
+	#future = $state.raw<Snapshot[]>([]);
+	#lastKey: string | null = null;
+	#lastTime = 0;
+	canUndo = $derived(this.#past.length > 0);
+	canRedo = $derived(this.#future.length > 0);
 
-	constructor(random: () => number = Math.random) {
+	constructor(random: () => number = Math.random, now: () => number = () => performance.now()) {
 		this.#random = random;
+		this.#now = now;
+	}
+
+	undo() {
+		const previous = this.#past.at(-1);
+		if (!previous) return;
+		this.#future = [...this.#future, this.#snapshot()];
+		this.#past = this.#past.slice(0, -1);
+		this.#restore(previous);
+	}
+
+	redo() {
+		const next = this.#future.at(-1);
+		if (!next) return;
+		this.#past = [...this.#past, this.#snapshot()];
+		this.#future = this.#future.slice(0, -1);
+		this.#restore(next);
+	}
+
+	/** Saves the state before a change; a null key never merges with the previous step. */
+	#record(key: string | null) {
+		const time = this.#now();
+		const merge = key !== null && key === this.#lastKey && time - this.#lastTime < MERGE_MS;
+		this.#lastKey = key;
+		this.#lastTime = time;
+		if (merge) return;
+		this.#past = [...this.#past, this.#snapshot()].slice(-HISTORY_LIMIT);
+		this.#future = [];
+	}
+
+	#snapshot(): Snapshot {
+		return $state.snapshot({ elements: this.elements, mood: this.mood });
+	}
+
+	#restore(snapshot: Snapshot) {
+		this.elements = snapshot.elements;
+		this.mood = snapshot.mood;
+		this.#lastKey = null;
+		if (!this.elements.some((e) => e.id === this.selectedId)) this.selectedId = null;
 	}
 
 	add(kind: ElementKind, x: number, y: number): string {
+		this.#record(null);
 		return this.#push({ kind, x: clamp(x, 0, 1), y: clamp(y, 0, 1), scale: 1 });
 	}
 
 	addStroke(brush: Brush, shape: StrokeShape): string {
+		this.#record(null);
 		return this.#push({ kind: 'stroke', brush, ...shape });
 	}
 
@@ -88,6 +145,7 @@ export class Scene {
 	move(id: string, x: number, y: number) {
 		const el = this.#get(id);
 		if (!el) return;
+		this.#record(`move:${id}`);
 		el.x = clamp(x, 0, 1);
 		el.y = clamp(y, 0, 1);
 	}
@@ -95,6 +153,7 @@ export class Scene {
 	transform(id: string, change: { scale?: number; rotation?: number }) {
 		const el = this.#get(id);
 		if (!el) return;
+		this.#record(`transform:${id}`);
 		if (change.scale !== undefined) el.scale = clamp(change.scale, MIN_SCALE, MAX_SCALE);
 		if (change.rotation !== undefined) el.rotation = change.rotation;
 	}
@@ -102,6 +161,7 @@ export class Scene {
 	update(id: string, change: Partial<Style>) {
 		const el = this.#get(id);
 		if (!el) return;
+		this.#record(`update:${id}`);
 		if (change.hue !== undefined) el.hue = ((Math.round(change.hue) % 360) + 360) % 360;
 		for (const key of ['vividness', 'density', 'speed'] as const) {
 			const v = change[key];
@@ -110,6 +170,7 @@ export class Scene {
 	}
 
 	setMood(change: Partial<Mood>) {
+		this.#record('mood');
 		if (change.backdrop !== undefined) this.mood.backdrop = change.backdrop;
 		if (change.wind !== undefined) this.mood.wind = clamp(change.wind, 0, 1);
 		if (change.glow !== undefined) this.mood.glow = change.glow;
@@ -117,15 +178,21 @@ export class Scene {
 
 	reroll(id: string) {
 		const el = this.#get(id);
-		if (el) el.seed = this.#seed();
+		if (!el) return;
+		this.#record(null);
+		el.seed = this.#seed();
 	}
 
 	raise(id: string) {
 		const i = this.elements.findIndex((e) => e.id === id);
-		if (i >= 0 && i < this.elements.length - 1) this.elements.push(...this.elements.splice(i, 1));
+		if (i < 0 || i === this.elements.length - 1) return;
+		this.#record(null);
+		this.elements.push(...this.elements.splice(i, 1));
 	}
 
 	remove(id: string) {
+		if (!this.#get(id)) return;
+		this.#record(null);
 		this.elements = this.elements.filter((e) => e.id !== id);
 		if (this.selectedId === id) this.selectedId = null;
 	}

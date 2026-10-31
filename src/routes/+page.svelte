@@ -7,6 +7,8 @@
 	import {
 		Brush as BrushIcon,
 		CodeXml,
+		Redo2,
+		Undo2,
 		Leaf,
 		MousePointer2,
 		SlidersHorizontal,
@@ -92,6 +94,15 @@
 		}
 	}
 
+	function onHistoryKey(e: KeyboardEvent) {
+		if (!(e.metaKey || e.ctrlKey)) return;
+		const key = e.key.toLowerCase();
+		if (key === 'z' && !e.shiftKey) scene.undo();
+		else if ((key === 'z' && e.shiftKey) || key === 'y') scene.redo();
+		else return;
+		e.preventDefault();
+	}
+
 	function onSeedClick(kind: ElementKind) {
 		if (suppressClick) {
 			suppressClick = false;
@@ -110,7 +121,7 @@
 	/>
 </svelte:head>
 
-<svelte:window onpointermove={onWindowMove} onpointerup={onWindowUp} />
+<svelte:window onpointermove={onWindowMove} onpointerup={onWindowUp} onkeydown={onHistoryKey} />
 
 <div class="app" class:dragging={drag?.active} class:tune-open={tuneOpen}>
 	<main>
@@ -200,6 +211,27 @@
 					</button>
 				{/each}
 			{/if}
+			<span class="sep" role="presentation"></span>
+			<button
+				type="button"
+				class="tool icon-only"
+				aria-label="Undo"
+				title="Undo (Ctrl/⌘+Z)"
+				disabled={!scene.canUndo}
+				onclick={() => scene.undo()}
+			>
+				<Undo2 size={18} aria-hidden="true" />
+			</button>
+			<button
+				type="button"
+				class="tool icon-only"
+				aria-label="Redo"
+				title="Redo (Shift+Ctrl/⌘+Z)"
+				disabled={!scene.canRedo}
+				onclick={() => scene.redo()}
+			>
+				<Redo2 size={18} aria-hidden="true" />
+			</button>
 			<span class="sep tune-only" role="presentation"></span>
 			<button
 				type="button"
@@ -359,8 +391,15 @@
 		cursor: pointer;
 		transition: background 120ms;
 	}
-	.tool:hover {
+	.tool:hover:not(:disabled) {
 		background: var(--surface-hover);
+	}
+	.tool:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+	.icon-only {
+		padding: 0 calc(var(--space) * 3);
 	}
 	.tool[aria-pressed='true'] {
 		background: var(--accent-strong);
