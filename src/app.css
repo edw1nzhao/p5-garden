@@ -1,0 +1,44 @@
+/* Design tokens: every size, colour and surface in the app comes from here. */
+:root {
+	--space: 4px;
+	--text-xs: 0.75rem;
+	--text-sm: 0.8125rem;
+	--text-md: 0.875rem;
+	--text-lg: 1rem;
+	--text-xl: 1.25rem;
+	--radius-sm: 8px;
+	--radius-md: 12px;
+	--radius-lg: 18px;
+	--radius-pill: 999px;
+	--bg: #0b0f19;
+	--fg: #e2e8f0;
+	--fg-muted: #94a3b8;
+	--accent: #6366f1;
+	--accent-strong: #4f46e5;
+	--accent-soft: #a5b4fc;
+	--danger: #f87171;
+	--surface: rgb(255 255 255 / 0.04);
+	--surface-hover: rgb(255 255 255 / 0.08);
+	--glass: rgb(15 23 42 / 0.72);
+	--glass-border: rgb(148 163 184 / 0.18);
+	--shadow: 0 12px 32px rgb(0 0 0 / 0.45);
+	color-scheme: dark;
+}
+
+html,
+body {
+	margin: 0;
+	height: 100%;
+	background: var(--bg);
+	color: var(--fg);
+	font-family: 'Inter', system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased;
+}
+
+.glass {
+	background: var(--glass);
+	border: 1px solid var(--glass-border);
+	border-radius: var(--radius-lg);
+	box-shadow: var(--shadow);
+	backdrop-filter: blur(14px) saturate(1.2);
+}

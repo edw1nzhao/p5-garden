@@ -199,7 +199,7 @@
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		color: #94a3b8;
+		color: var(--fg-muted);
 	}
 	.field {
 		display: grid;
@@ -211,12 +211,12 @@
 		justify-content: space-between;
 	}
 	output {
-		color: #94a3b8;
+		color: var(--fg-muted);
 		font-variant-numeric: tabular-nums;
 	}
 	input[type='range'] {
 		width: 100%;
-		accent-color: #818cf8;
+		accent-color: var(--accent-soft);
 	}
 	.hue {
 		appearance: none;
@@ -270,7 +270,7 @@
 	}
 	.backdrop {
 		min-height: 2.75rem;
-		border: 2px solid #334155;
+		border: 2px solid var(--glass-border);
 		border-radius: 0.5rem;
 		background: linear-gradient(var(--top), var(--bottom));
 		color: #fff;
@@ -284,23 +284,23 @@
 		text-shadow: none;
 	}
 	.backdrop[aria-pressed='true'] {
-		border-color: #a5b4fc;
+		border-color: var(--accent-soft);
 	}
 	.toggle {
 		justify-self: start;
 		min-height: 2.25rem;
 		padding: 0 0.875rem;
-		border: 1px solid #334155;
+		border: 1px solid var(--glass-border);
 		border-radius: 999px;
-		background: #111827;
+		background: var(--surface);
 		color: inherit;
 		font: inherit;
 		font-size: 0.875rem;
 		cursor: pointer;
 	}
 	.toggle[aria-pressed='true'] {
-		background: #4f46e5;
-		border-color: #818cf8;
+		background: var(--accent-strong);
+		border-color: var(--accent-soft);
 	}
 	.toggle:disabled {
 		opacity: 0.5;
@@ -314,28 +314,28 @@
 	.actions button {
 		min-height: 2.25rem;
 		padding: 0 0.75rem;
-		border: 1px solid #334155;
+		border: 1px solid var(--glass-border);
 		border-radius: 0.375rem;
-		background: #111827;
+		background: var(--surface);
 		color: inherit;
 		font: inherit;
 		font-size: 0.875rem;
 		cursor: pointer;
 	}
 	.actions button:hover {
-		border-color: #6366f1;
+		border-color: var(--accent);
 	}
 	.actions .danger:hover {
-		border-color: #f87171;
+		border-color: var(--danger);
 	}
 	button:focus-visible,
 	input:focus-visible {
-		outline: 2px solid #a5b4fc;
+		outline: 2px solid var(--accent-soft);
 		outline-offset: 2px;
 	}
 	.empty {
 		margin: 0;
 		font-size: 0.875rem;
-		color: #94a3b8;
+		color: var(--fg-muted);
 	}
 </style>

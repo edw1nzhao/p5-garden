@@ -53,6 +53,7 @@
 	// Poster export renders at 3x the canvas's CSS size; the DOM overlay never appears in it.
 	const POSTER = { scale: 3, filename: 'p5-garden.png' };
 	const PILL_GAP = 14;
+	const DOCK_CLEARANCE = 112;
 	const PILL_HEIGHT = 44;
 	let gesture: Gesture | null = null;
 
@@ -62,7 +63,8 @@
 		const cx = el.x * width;
 		const cy = el.y * height;
 		const r = elementRadius(el, stage);
-		const below = cy + r + PILL_GAP + PILL_HEIGHT <= height;
+		// Leave room for the floating toolbar along the bottom edge.
+		const below = cy + r + PILL_GAP + PILL_HEIGHT <= height - DOCK_CLEARANCE;
 		const pillTop = below ? cy + r + PILL_GAP : cy - r - PILL_GAP - PILL_HEIGHT;
 		const pillLeft = Math.min(Math.max(cx, 110), Math.max(110, width - 110));
 		return { el, cx, cy, r, pillTop, pillLeft };
@@ -204,7 +206,9 @@
 	onkeydown={onKey}
 >
 	<Sketch {sketch} {description} {bridge} loop={prefersReducedMotion.current ? 'demand' : 'always'}>
-		<ExportButton position="top-right" options={POSTER} class="poster">Save poster</ExportButton>
+		<div class="actions">
+			<ExportButton position="static" options={POSTER} class="poster">Save poster</ExportButton>
+		</div>
 		{#if selection}
 			<div
 				class="selection"
@@ -251,7 +255,7 @@
 		cursor: cell;
 	}
 	.stage:focus-visible {
-		box-shadow: inset 0 0 0 2px #a5b4fc;
+		box-shadow: inset 0 0 0 2px var(--accent-soft);
 	}
 	.selection {
 		position: absolute;
@@ -259,6 +263,12 @@
 		box-shadow: 0 0 0 1px rgb(0 0 0 / 0.35);
 		border-radius: 50%;
 		pointer-events: none;
+	}
+	.actions {
+		position: absolute;
+		top: 16px;
+		right: 16px;
+		z-index: 2;
 	}
 	.stage :global(.poster) {
 		padding: 0.5rem 0.875rem;
@@ -273,7 +283,7 @@
 		z-index: 2;
 	}
 	.stage :global(.poster:hover) {
-		background: #4f46e5;
+		background: var(--accent-strong);
 	}
 	.pill {
 		position: absolute;
@@ -301,7 +311,7 @@
 		touch-action: none;
 	}
 	.grip:hover {
-		background: #4f46e5;
+		background: var(--accent-strong);
 	}
 	.grip.move {
 		cursor: move;
