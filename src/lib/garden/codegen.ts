@@ -49,7 +49,7 @@ export function sketchBody(garden: GardenSnapshot) {
 ${art}
 
 const garden = ${JSON.stringify(gardenData(garden), null, '\t')};
-const clock = { sway: 0, times: new Map() };
+const clock = { sway: 0, times: new Map(), lean: new Map() };
 
 p.setup = () => {
 	p.createCanvas(800, 600);

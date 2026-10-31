@@ -39,11 +39,14 @@ const garden = {
 /** A stand-in for a p5 instance: every method is a no-op that records its name. */
 function fakeP5() {
 	const calls: string[] = [];
+	const scales: number[] = [];
 	const ctx = { createLinearGradient: () => ({ addColorStop() {} }), fillRect() {}, fillStyle: '' };
 	const fixed: Record<string, unknown> = {
 		width: 800,
 		height: 600,
 		deltaTime: 16,
+		mouseX: 400,
+		mouseY: 300,
 		TWO_PI: Math.PI * 2,
 		drawingContext: ctx,
 		noise: () => 0.5
@@ -52,12 +55,13 @@ function fakeP5() {
 		get: (target, key: string) =>
 			key in target
 				? target[key]
-				: () => {
+				: (...args: unknown[]) => {
 						calls.push(key);
+						if (key === 'scale') scales.push(args[0] as number);
 					},
 		set: (target, key: string, value) => ((target[key] = value), true)
 	}) as Record<string, unknown> & { setup: () => void; draw: () => void };
-	return { p, calls };
+	return { p, calls, scales };
 }
 
 describe('code generation', () => {
@@ -97,5 +101,20 @@ describe('code generation', () => {
 		);
 		const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
 		expect(await new Response(stream).text()).toBe(sketchBody(garden));
+	});
+
+	it('draws plants near the pointer larger, and plants far away at their own size', () => {
+		const run = (x: number) => {
+			const { p, scales } = fakeP5();
+			new Function(
+				'p',
+				sketchBody({ ...garden, elements: [{ ...garden.elements[0], x, y: 0.5 }] })
+			)(p);
+			p.setup();
+			for (let i = 0; i < 30; i++) p.draw();
+			return scales.at(-1)!;
+		};
+		expect(run(0.5)).toBeGreaterThan(1.05);
+		expect(run(0.05)).toBe(1);
 	});
 });

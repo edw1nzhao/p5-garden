@@ -248,7 +248,7 @@ export const BACKDROPS = {
  * Draws one frame of a garden: backdrop, then every element in order. `clock` holds each
  * element's own time and the shared sway time, so speed changes never jump.
  * @param {P5} p @param {Garden} garden
- * @param {{ sway: number, times: Map<string, number> }} clock
+ * @param {{ sway: number, times: Map<string, number>, lean?: Map<string, number> }} clock
  */
 export function drawGarden(p, garden, clock) {
 	const width = p.width;
@@ -263,15 +263,29 @@ export function drawGarden(p, garden, clock) {
 	ctx.fillRect(0, 0, width, height);
 	p.blendMode(garden.mood.glow && !backdrop.light ? p.ADD : p.BLEND);
 	clock.sway += dt;
+	const lean = (clock.lean ??= new Map());
+	const mx = p.mouseX;
+	const my = p.mouseY;
+	const pointerIn = mx >= 0 && my >= 0 && mx <= width && my <= height;
 	const unit = BASE_RADIUS * Math.min(width, height);
 	for (const el of garden.elements) {
 		const t = (clock.times.get(el.id) ?? 0) + dt * el.speed;
 		clock.times.set(el.id, t);
 		p.push();
 		p.translate(el.x * width, el.y * height);
-		const sway = garden.mood.wind * 0.3 * Math.sin(clock.sway * 0.9 + (el.seed % 628) / 100);
+		// Plants near the pointer swell and sway more, easing in and out.
+		const r = unit * el.scale;
+		const near = pointerIn
+			? Math.max(0, 1 - Math.hypot(mx - el.x * width, my - el.y * height) / (r * 1.6))
+			: 0;
+		const prev = lean.get(el.id) ?? 0;
+		const l = prev + (near - prev) * Math.min(1, dt * 6);
+		lean.set(el.id, l);
+		const wind = garden.mood.wind + l * 0.5;
+		const sway = wind * 0.3 * Math.sin(clock.sway * 0.9 + (el.seed % 628) / 100);
 		p.rotate(el.rotation + sway);
-		DRAW[el.kind](p, el, unit * el.scale, t);
+		p.scale(1 + 0.12 * l);
+		DRAW[el.kind](p, el, r, t);
 		p.pop();
 	}
 	p.blendMode(p.BLEND);

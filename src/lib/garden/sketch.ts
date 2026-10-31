@@ -4,7 +4,7 @@ import { drawGarden } from './art.js';
 import { renderThumbnails } from './thumbnails.svelte.js';
 
 export function gardenSketch(scene: Scene) {
-	const clock = { sway: 0, times: new Map<string, number>() };
+	const clock = { sway: 0, times: new Map<string, number>(), lean: new Map<string, number>() };
 	return (p: p5) => {
 		p.setup = () => {
 			p.createCanvas(100, 100);
