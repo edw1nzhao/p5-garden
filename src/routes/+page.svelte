@@ -2,6 +2,7 @@
 	import { Scene, type ElementKind } from '#lib/scene/scene.svelte.js';
 	import { KINDS, KIND_ORDER } from '#lib/garden/kinds.js';
 	import Stage from '#lib/garden/Stage.svelte';
+	import Panel from '#lib/garden/Panel.svelte';
 
 	const scene = new Scene();
 	let stageEl = $state<HTMLDivElement>();
@@ -108,6 +109,10 @@
 		<Stage {scene} bind:element={stageEl} />
 	</main>
 
+	<div class="panel-area">
+		<Panel {scene} />
+	</div>
+
 	{#if drag?.active}
 		<div class="ghost" style="left: {drag.x}px; top: {drag.y}px;" aria-hidden="true">
 			<span class="swatch {drag.kind}"></span>
@@ -125,7 +130,7 @@
 	}
 	.app {
 		display: grid;
-		grid-template: 'header header' auto 'aside main' 1fr / 10rem 1fr;
+		grid-template: 'header header header' auto 'aside main panel' 1fr / 10rem 1fr 16rem;
 		height: 100dvh;
 	}
 	.app.dragging {
@@ -187,6 +192,12 @@
 		grid-area: main;
 		min-height: 0;
 	}
+	.panel-area {
+		grid-area: panel;
+		min-height: 0;
+		border-left: 1px solid #1e293b;
+		display: grid;
+	}
 	.swatch {
 		width: 1.25rem;
 		height: 1.25rem;
@@ -215,7 +226,7 @@
 	}
 	@media (max-width: 40rem) {
 		.app {
-			grid-template: 'header' auto 'aside' auto 'main' 1fr / 1fr;
+			grid-template: 'header' auto 'aside' auto 'main' 1fr 'panel' auto / 1fr;
 		}
 		header p {
 			display: none;
@@ -226,6 +237,11 @@
 		}
 		ul {
 			grid-auto-flow: column;
+		}
+		.panel-area {
+			border-left: 0;
+			border-top: 1px solid #1e293b;
+			max-height: 40dvh;
 		}
 	}
 </style>

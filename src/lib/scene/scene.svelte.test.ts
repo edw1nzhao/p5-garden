@@ -44,4 +44,28 @@ describe('Scene', () => {
 		expect(scene.elements.map((e) => e.id)).toEqual([b]);
 		expect(scene.selected).toBeNull();
 	});
+
+	it('starts elements with neutral style settings', () => {
+		const scene = new Scene(() => 0.5);
+		scene.add('bloom', 0.5, 0.5);
+		expect(scene.elements[0]).toMatchObject({ hue: 180, vividness: 1, density: 1, speed: 1 });
+	});
+
+	it('updates style settings within their ranges', () => {
+		const scene = new Scene();
+		const id = scene.add('swarm', 0.5, 0.5);
+		scene.update(id, { hue: 400, vividness: 9, density: 0, speed: -1 });
+		expect(scene.elements[0]).toMatchObject({ hue: 40, vividness: 1.5, density: 0.3, speed: 0 });
+		scene.update(id, { hue: -30 });
+		expect(scene.elements[0].hue).toBe(330);
+	});
+
+	it('re-rolls an element into a new seed', () => {
+		const values = [0.1, 0.2, 0.9];
+		const scene = new Scene(() => values.shift() ?? 0);
+		const id = scene.add('ribbon', 0.5, 0.5);
+		const before = scene.elements[0].seed;
+		scene.reroll(id);
+		expect(scene.elements[0].seed).not.toBe(before);
+	});
 });
