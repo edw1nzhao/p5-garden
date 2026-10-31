@@ -79,3 +79,18 @@ test('clicking empty soil deselects', async ({ page }) => {
 	await page.mouse.click(s.x + 20, s.y + 20);
 	await expect(selection(page)).toHaveCount(0);
 });
+
+test('every seed in the palette has a rendered icon and can be planted', async ({ page }) => {
+	const labels = ['Bloom', 'Swarm', 'Ribbon', 'Tree', 'Fireflies', 'Flow'];
+	for (const label of labels) {
+		const icon = page.getByRole('button', { name: label, exact: true }).locator('img');
+		await expect(icon).toHaveJSProperty('complete', true);
+		expect(await icon.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+	}
+	await page.getByRole('button', { name: 'Tree', exact: true }).click();
+	await page.getByRole('button', { name: 'Fireflies', exact: true }).click();
+	await page.getByRole('button', { name: 'Flow', exact: true }).click();
+	await expect(stage(page).locator('canvas [aria-label="Canvas Description"]')).toHaveText(
+		'A garden on a dark night with 1 tree, 1 firefly cloud, 1 flow, slowly moving.'
+	);
+});

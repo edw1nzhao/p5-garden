@@ -3,6 +3,7 @@
 	import { KINDS, KIND_ORDER } from '#lib/garden/kinds.js';
 	import Stage from '#lib/garden/Stage.svelte';
 	import Panel from '#lib/garden/Panel.svelte';
+	import { thumbnails } from '#lib/garden/thumbnails.svelte.js';
 
 	const scene = new Scene();
 	let stageEl = $state<HTMLDivElement>();
@@ -97,7 +98,18 @@
 						onpointerdown={(e) => onSeedDown(e, kind)}
 						onclick={() => onSeedClick(kind)}
 					>
-						<span class="swatch {kind}" aria-hidden="true"></span>
+						{#if thumbnails[kind]}
+							<img
+								class="icon"
+								src={thumbnails[kind]}
+								alt=""
+								width="36"
+								height="36"
+								draggable="false"
+							/>
+						{:else}
+							<span class="icon" aria-hidden="true"></span>
+						{/if}
 						{KINDS[kind].label}
 					</button>
 				</li>
@@ -115,7 +127,16 @@
 
 	{#if drag?.active}
 		<div class="ghost" style="left: {drag.x}px; top: {drag.y}px;" aria-hidden="true">
-			<span class="swatch {drag.kind}"></span>
+			{#if thumbnails[drag.kind]}
+				<img
+					class="icon"
+					src={thumbnails[drag.kind]}
+					alt=""
+					width="36"
+					height="36"
+					draggable="false"
+				/>
+			{/if}
 		</div>
 	{/if}
 </div>
@@ -198,29 +219,18 @@
 		border-left: 1px solid #1e293b;
 		display: grid;
 	}
-	.swatch {
-		width: 1.25rem;
-		height: 1.25rem;
-		border-radius: 50%;
+	.icon {
+		width: 2.25rem;
+		height: 2.25rem;
+		border-radius: 0.375rem;
 		flex-shrink: 0;
-	}
-	.swatch.bloom {
-		background: radial-gradient(circle, #fde68a 20%, #f472b6 60%, #a855f7);
-	}
-	.swatch.swarm {
-		background:
-			radial-gradient(circle, #67e8f9 15%, transparent 20%),
-			radial-gradient(circle at 30% 70%, #38bdf8 12%, transparent 16%),
-			radial-gradient(circle at 70% 30%, #818cf8 12%, transparent 16%), #1e293b;
-	}
-	.swatch.ribbon {
-		background: linear-gradient(135deg, #34d399, #22d3ee 50%, #6366f1);
-		border-radius: 0.375rem 1rem;
+		background: #111827;
+		pointer-events: none;
 	}
 	.ghost {
 		position: fixed;
 		pointer-events: none;
-		transform: translate(-50%, -50%) scale(2);
+		transform: translate(-50%, -50%) scale(1.75);
 		opacity: 0.85;
 		z-index: 10;
 	}
