@@ -3,8 +3,10 @@
 	import { KINDS, KIND_ORDER } from '#lib/garden/kinds.js';
 	import Stage from '#lib/garden/Stage.svelte';
 	import Panel from '#lib/garden/Panel.svelte';
+	import CodePanel from '#lib/garden/CodePanel.svelte';
 	import {
 		Brush as BrushIcon,
+		CodeXml,
 		Leaf,
 		MousePointer2,
 		SlidersHorizontal,
@@ -17,6 +19,7 @@
 	let tool = $state<'arrange' | 'paint'>('arrange');
 	let brush = $state<Brush>('vine');
 	let tuneOpen = $state(false);
+	let codeOpen = $state(false);
 	let stack = $state<{ index: number; total: number } | null>(null);
 	const TOOLS = [
 		{ id: 'arrange', label: 'Arrange', hint: 'Select, move, turn and resize', icon: MousePointer2 },
@@ -111,7 +114,18 @@
 
 <div class="app" class:dragging={drag?.active} class:tune-open={tuneOpen}>
 	<main>
-		<Stage {scene} {tool} {brush} bind:element={stageEl} bind:stack />
+		<Stage {scene} {tool} {brush} bind:element={stageEl} bind:stack>
+			{#snippet actions()}
+				<button
+					type="button"
+					class="poster"
+					aria-pressed={codeOpen}
+					onclick={() => (codeOpen = !codeOpen)}
+				>
+					<CodeXml size={16} aria-hidden="true" /> Code
+				</button>
+			{/snippet}
+		</Stage>
 	</main>
 
 	<header class="brand glass">
@@ -200,9 +214,15 @@
 		</div>
 	</div>
 
-	<div id="inspector" class="inspector glass">
-		<Panel {scene} />
-	</div>
+	{#if codeOpen}
+		<div class="inspector code-drawer glass">
+			<CodePanel garden={scene} onclose={() => (codeOpen = false)} />
+		</div>
+	{:else}
+		<div id="inspector" class="inspector glass">
+			<Panel {scene} />
+		</div>
+	{/if}
 
 	{#if drag?.active}
 		<div class="ghost" style="left: {drag.x}px; top: {drag.y}px;" aria-hidden="true">
@@ -366,6 +386,12 @@
 		max-height: calc(100dvh - var(--space) * 48);
 		display: grid;
 		overflow: hidden;
+	}
+	.code-drawer {
+		width: calc(var(--space) * 120);
+		max-width: calc(100vw - var(--space) * 32);
+		height: calc(100dvh - var(--space) * 48);
+		display: grid !important;
 	}
 	.ghost {
 		position: fixed;

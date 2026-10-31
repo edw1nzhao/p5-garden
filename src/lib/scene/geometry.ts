@@ -13,8 +13,9 @@ export interface Stage {
 	height: number;
 }
 
-/** An element's radius at scale 1, as a fraction of the stage's shorter side. */
-export const BASE_RADIUS = 0.12;
+import { BASE_RADIUS } from '#lib/garden/art.js';
+
+export { BASE_RADIUS };
 export const MIN_SCALE = 0.3;
 export const MAX_SCALE = 3;
 
