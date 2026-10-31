@@ -34,33 +34,54 @@ test('dropping a seed plants it where it was dropped', async ({ page }) => {
 	);
 });
 
-test('a dropped element can be moved, grown and turned', async ({ page }) => {
+test('the handle pill moves, grows and turns the plant', async ({ page }) => {
 	const s = (await stage(page).boundingBox())!;
-	await dragSeed(page, 'Swarm', s.x + s.width * 0.5, s.y + s.height * 0.5);
+	await dragSeed(page, 'Swarm', s.x + s.width * 0.4, s.y + s.height * 0.35);
 	const before = await box(page, 'selection');
 
-	await page.mouse.move(before.cx, before.cy);
+	const move = await box(page, 'move-handle');
+	await page.mouse.move(move.cx, move.cy);
 	await page.mouse.down();
-	await page.mouse.move(before.cx + 120, before.cy + 60, { steps: 6 });
+	await page.mouse.move(move.cx + 120, move.cy + 60, { steps: 6 });
 	await page.mouse.up();
 	const moved = await box(page, 'selection');
 	expect(moved.cx - before.cx).toBeCloseTo(120, 0);
 	expect(moved.cy - before.cy).toBeCloseTo(60, 0);
 
-	const handle = await box(page, 'scale-handle');
-	await page.mouse.move(handle.cx, handle.cy);
+	const grow = await box(page, 'scale-handle');
+	const dx = grow.cx - moved.cx;
+	const dy = grow.cy - moved.cy;
+	await page.mouse.move(grow.cx, grow.cy);
 	await page.mouse.down();
-	await page.mouse.move(handle.cx + 80, handle.cy, { steps: 6 });
+	await page.mouse.move(moved.cx + dx * 1.6, moved.cy + dy * 1.6, { steps: 6 });
 	await page.mouse.up();
-	expect((await box(page, 'selection')).width).toBeGreaterThan(moved.width * 1.3);
+	expect((await box(page, 'selection')).width).toBeCloseTo(moved.width * 1.6, -1);
 
-	const rotate = await box(page, 'rotate-handle');
+	const turn = await box(page, 'rotate-handle');
 	const centre = await box(page, 'selection');
-	await page.mouse.move(rotate.cx, rotate.cy);
+	const radius = Math.hypot(turn.cx - centre.cx, turn.cy - centre.cy);
+	const start = Math.atan2(turn.cy - centre.cy, turn.cx - centre.cx);
+	await page.mouse.move(turn.cx, turn.cy);
 	await page.mouse.down();
-	await page.mouse.move(centre.cx + 150, centre.cy, { steps: 8 });
+	for (let i = 1; i <= 8; i++) {
+		const a = start + (i / 8) * (Math.PI / 2);
+		await page.mouse.move(centre.cx + Math.cos(a) * radius, centre.cy + Math.sin(a) * radius);
+	}
 	await page.mouse.up();
 	await expect(selection(page)).toHaveAttribute('style', /rotate\(1\.5\d*rad\)/);
+	await expect(page.getByTestId('handles')).not.toHaveAttribute('style', /rotate/);
+});
+
+test('each grip says what it does', async ({ page }) => {
+	await page.getByRole('button', { name: 'Bloom', exact: true }).click();
+	for (const [id, label] of [
+		['move-handle', 'Move'],
+		['rotate-handle', 'Turn'],
+		['scale-handle', 'Resize']
+	]) {
+		await expect(page.getByTestId(id)).toHaveAttribute('title', new RegExp(label));
+		await expect(page.getByTestId(id)).toContainText(label);
+	}
 });
 
 test('clicking a seed plants it in the centre, and Delete removes it', async ({ page }) => {
