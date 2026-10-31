@@ -1,11 +1,18 @@
 <script lang="ts">
-	import { Scene, type ElementKind } from '#lib/scene/scene.svelte.js';
+	import { Scene, type Brush, type ElementKind } from '#lib/scene/scene.svelte.js';
 	import { KINDS, KIND_ORDER } from '#lib/garden/kinds.js';
 	import Stage from '#lib/garden/Stage.svelte';
 	import Panel from '#lib/garden/Panel.svelte';
 	import { thumbnails } from '#lib/garden/thumbnails.svelte.js';
 
 	const scene = new Scene();
+	let tool = $state<'arrange' | 'paint'>('arrange');
+	let brush = $state<Brush>('vine');
+	const BRUSHES: { id: Brush; label: string }[] = [
+		{ id: 'vine', label: 'Vine' },
+		{ id: 'shimmer', label: 'Shimmer' },
+		{ id: 'silk', label: 'Silk' }
+	];
 	let stageEl = $state<HTMLDivElement>();
 
 	interface Drag {
@@ -83,11 +90,31 @@
 	<header>
 		<h1>p5 garden</h1>
 		<p>
-			Drag a seed onto the soil. Drag to move, use the handles to grow and turn, Delete to remove.
+			{tool === 'paint'
+				? 'Paint mode: drag across the canvas to paint a living stroke.'
+				: 'Drag a seed onto the soil. Drag to move, use the handles to grow and turn, Delete to remove.'}
 		</p>
 	</header>
 
-	<aside aria-label="Seeds">
+	<aside aria-label="Seeds and tools">
+		<div class="tools" role="group" aria-label="Tool">
+			<button type="button" aria-pressed={tool === 'arrange'} onclick={() => (tool = 'arrange')}>
+				Arrange
+			</button>
+			<button type="button" aria-pressed={tool === 'paint'} onclick={() => (tool = 'paint')}>
+				Paint
+			</button>
+		</div>
+		{#if tool === 'paint'}
+			<div class="brushes" role="group" aria-label="Brush">
+				{#each BRUSHES as b (b.id)}
+					<button type="button" aria-pressed={brush === b.id} onclick={() => (brush = b.id)}>
+						{b.label}
+					</button>
+				{/each}
+			</div>
+		{/if}
+		<h2 class="section">Seeds</h2>
 		<ul>
 			{#each KIND_ORDER as kind (kind)}
 				<li>
@@ -118,7 +145,7 @@
 	</aside>
 
 	<main>
-		<Stage {scene} bind:element={stageEl} />
+		<Stage {scene} {tool} {brush} bind:element={stageEl} />
 	</main>
 
 	<div class="panel-area">
@@ -151,7 +178,7 @@
 	}
 	.app {
 		display: grid;
-		grid-template: 'header header header' auto 'aside main panel' 1fr / 10rem 1fr 16rem;
+		grid-template: 'header header header' auto 'aside main panel' 1fr / 12rem 1fr 16rem;
 		height: 100dvh;
 	}
 	.app.dragging {
@@ -179,6 +206,45 @@
 		grid-area: aside;
 		border-right: 1px solid #1e293b;
 		padding: 0.75rem;
+	}
+	.tools,
+	.brushes {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.25rem;
+		margin-bottom: 0.5rem;
+	}
+	.brushes {
+		grid-template-columns: 1fr 1fr 1fr;
+	}
+	.tools button,
+	.brushes button {
+		min-height: 2.25rem;
+		border: 1px solid #334155;
+		border-radius: 0.375rem;
+		background: #111827;
+		color: inherit;
+		font: inherit;
+		font-size: 0.8125rem;
+		cursor: pointer;
+	}
+	.tools button[aria-pressed='true'],
+	.brushes button[aria-pressed='true'] {
+		background: #4f46e5;
+		border-color: #818cf8;
+	}
+	.tools button:focus-visible,
+	.brushes button:focus-visible {
+		outline: 2px solid #a5b4fc;
+		outline-offset: 2px;
+	}
+	.section {
+		margin: 0.75rem 0 0.5rem;
+		font-size: 0.75rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: #94a3b8;
 	}
 	ul {
 		list-style: none;

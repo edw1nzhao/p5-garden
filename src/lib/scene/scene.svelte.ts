@@ -1,6 +1,9 @@
-import type { Placed } from './geometry.js';
+import { MAX_SCALE, MIN_SCALE, type Placed, type StrokeShape } from './geometry.js';
 
-export type ElementKind = 'bloom' | 'swarm' | 'ribbon' | 'tree' | 'fireflies' | 'flow';
+export { MAX_SCALE, MIN_SCALE };
+
+export type ElementKind = 'bloom' | 'swarm' | 'ribbon' | 'tree' | 'fireflies' | 'flow' | 'stroke';
+export type Brush = 'vine' | 'shimmer' | 'silk';
 
 export interface Style {
 	/** Base hue in degrees. */
@@ -16,6 +19,9 @@ export interface Style {
 export interface GardenElement extends Placed, Style {
 	kind: ElementKind;
 	seed: number;
+	/** Painted strokes only. */
+	brush?: Brush;
+	path?: number[];
 }
 
 export const STYLE_RANGES = {
@@ -35,13 +41,13 @@ export interface Mood {
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-export const MIN_SCALE = 0.3;
-export const MAX_SCALE = 3;
 
 export class Scene {
 	elements = $state<GardenElement[]>([]);
 	selectedId = $state<string | null>(null);
 	mood = $state<Mood>({ backdrop: 'night', wind: 0, glow: false });
+	/** The stroke being painted, as stage fractions; null when not painting. */
+	draft = $state<{ x: number; y: number }[] | null>(null);
 	selected = $derived(this.elements.find((e) => e.id === this.selectedId) ?? null);
 
 	#random: () => number;
@@ -52,19 +58,24 @@ export class Scene {
 	}
 
 	add(kind: ElementKind, x: number, y: number): string {
-		const id = `${kind}-${++this.#count}`;
+		return this.#push({ kind, x: clamp(x, 0, 1), y: clamp(y, 0, 1), scale: 1 });
+	}
+
+	addStroke(brush: Brush, shape: StrokeShape): string {
+		return this.#push({ kind: 'stroke', brush, ...shape });
+	}
+
+	#push(fields: Pick<GardenElement, 'kind' | 'x' | 'y' | 'scale'> & Partial<GardenElement>) {
+		const id = `${fields.kind}-${++this.#count}`;
 		this.elements.push({
 			id,
-			kind,
-			x: clamp(x, 0, 1),
-			y: clamp(y, 0, 1),
-			scale: 1,
 			rotation: 0,
 			seed: this.#seed(),
 			hue: Math.round(this.#random() * 360),
 			vividness: 1,
 			density: 1,
-			speed: 1
+			speed: 1,
+			...fields
 		});
 		this.selectedId = id;
 		return id;

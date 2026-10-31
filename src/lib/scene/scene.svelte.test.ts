@@ -77,4 +77,18 @@ describe('Scene', () => {
 		scene.setMood({ wind: -1 });
 		expect(scene.mood.wind).toBe(0);
 	});
+
+	it('adds a painted stroke as a selectable element with its brush and path', () => {
+		const scene = new Scene(() => 0.5);
+		const id = scene.addStroke('vine', { x: 0.4, y: 0.6, scale: 1.2, path: [-1, 0, 1, 0] });
+		expect(scene.selected).toMatchObject({
+			id,
+			kind: 'stroke',
+			brush: 'vine',
+			x: 0.4,
+			y: 0.6,
+			scale: 1.2,
+			path: [-1, 0, 1, 0]
+		});
+	});
 });

@@ -39,6 +39,14 @@ export function gardenSketch(scene: Scene) {
 				p.pop();
 			}
 			p.blendMode(p.BLEND);
+			if (scene.draft && scene.draft.length > 1) {
+				p.noFill();
+				p.stroke(0, 0, 100, 0.6);
+				p.strokeWeight(2);
+				p.beginShape();
+				for (const pt of scene.draft) p.vertex(pt.x * stage.width, pt.y * stage.height);
+				p.endShape();
+			}
 			if (clocks.size > scene.elements.length) {
 				const live = new Set(scene.elements.map((e) => e.id));
 				for (const id of clocks.keys()) if (!live.has(id)) clocks.delete(id);

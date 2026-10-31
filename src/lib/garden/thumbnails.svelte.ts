@@ -2,7 +2,7 @@ import type p5 from 'p5';
 import type { ElementKind, GardenElement } from '#lib/scene/scene.svelte.js';
 import { KINDS, KIND_ORDER } from './kinds.js';
 
-const HUES: Record<ElementKind, number> = {
+const HUES: Partial<Record<ElementKind, number>> = {
 	bloom: 330,
 	swarm: 200,
 	ribbon: 160,
@@ -26,7 +26,7 @@ export function renderThumbnails(p: p5) {
 			scale: 1,
 			rotation: 0,
 			seed: 20261031,
-			hue: HUES[kind],
+			hue: HUES[kind] ?? 200,
 			vividness: 1,
 			density: 1,
 			speed: 1

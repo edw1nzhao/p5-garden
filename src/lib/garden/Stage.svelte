@@ -1,13 +1,31 @@
 <script lang="ts">
 	import { Sketch } from 'svelte-p5-components';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { BASE_RADIUS, elementRadius, hitTest } from '#lib/scene/geometry.js';
-	import type { Scene } from '#lib/scene/scene.svelte.js';
+	import {
+		BASE_RADIUS,
+		elementRadius,
+		hitTest,
+		smoothPath,
+		strokeFromPath
+	} from '#lib/scene/geometry.js';
+	import type { Brush, Scene } from '#lib/scene/scene.svelte.js';
 	import { BACKDROPS } from './backdrops.js';
 	import { KINDS } from './kinds.js';
 	import { gardenSketch } from './sketch.js';
 
-	let { scene, element = $bindable() }: { scene: Scene; element?: HTMLDivElement } = $props();
+	let {
+		scene,
+		element = $bindable(),
+		tool = 'arrange',
+		brush = 'vine'
+	}: {
+		scene: Scene;
+		element?: HTMLDivElement;
+		tool?: 'arrange' | 'paint';
+		brush?: Brush;
+	} = $props();
+
+	let painting: { x: number; y: number }[] | null = null;
 
 	let width = $state(0);
 	let height = $state(0);
@@ -16,7 +34,7 @@
 	// Under 'demand', reading the elements deeply makes any scene change redraw.
 	const bridge = {
 		get state() {
-			return { elements: scene.elements, mood: scene.mood };
+			return { elements: scene.elements, mood: scene.mood, draft: scene.draft };
 		}
 	};
 
@@ -35,7 +53,7 @@
 		if (scene.elements.length === 0) return `An empty garden on ${place}, waiting for seeds.`;
 		const counts = new Map<string, number>();
 		for (const el of scene.elements) {
-			const noun = KINDS[el.kind].noun;
+			const noun = el.kind === 'stroke' ? `painted ${el.brush}` : KINDS[el.kind].noun;
 			counts.set(noun, (counts.get(noun) ?? 0) + 1);
 		}
 		const parts = [...counts].map(([noun, n]) => `${n} ${noun}${n > 1 ? 's' : ''}`);
@@ -50,6 +68,13 @@
 	function onStageDown(e: PointerEvent) {
 		if (e.button !== 0) return;
 		const pt = local(e);
+		if (tool === 'paint') {
+			scene.select(null);
+			painting = [pt];
+			scene.draft = [{ x: pt.x / width, y: pt.y / height }];
+			element!.setPointerCapture(e.pointerId);
+			return;
+		}
 		const hit = hitTest(scene.elements, pt.x, pt.y, stage);
 		if (!hit) return scene.select(null);
 		scene.select(hit.id);
@@ -67,6 +92,14 @@
 	}
 
 	function onMove(e: PointerEvent) {
+		if (painting) {
+			const pt = local(e);
+			const last = painting[painting.length - 1];
+			if (Math.hypot(pt.x - last.x, pt.y - last.y) < 3) return;
+			painting.push(pt);
+			scene.draft?.push({ x: pt.x / width, y: pt.y / height });
+			return;
+		}
 		if (!gesture || !selection) return;
 		const pt = local(e);
 		if (gesture.mode === 'move') {
@@ -86,6 +119,11 @@
 
 	function onUp() {
 		gesture = null;
+		if (!painting) return;
+		if (painting.length >= 3)
+			scene.addStroke(brush, strokeFromPath(smoothPath(painting, 2), stage));
+		painting = null;
+		scene.draft = null;
 	}
 
 	function onKey(e: KeyboardEvent) {
@@ -117,6 +155,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 <div
 	class="stage"
+	class:painting={tool === 'paint'}
 	bind:this={element}
 	bind:clientWidth={width}
 	bind:clientHeight={height}
@@ -168,6 +207,9 @@
 		touch-action: none;
 		outline: none;
 		cursor: crosshair;
+	}
+	.stage.painting {
+		cursor: cell;
 	}
 	.stage:focus-visible {
 		box-shadow: inset 0 0 0 2px #a5b4fc;
