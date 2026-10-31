@@ -127,3 +127,23 @@ test('the header links to svelte-p5 and to the source', async ({ page }) => {
 		/github\.com\/[\w-]+\/p5-garden$/
 	);
 });
+
+test('undo and redo step through changes from the toolbar and the keyboard', async ({ page }) => {
+	const undo = page.getByRole('button', { name: 'Undo' });
+	const redo = page.getByRole('button', { name: 'Redo' });
+	await expect(undo).toBeDisabled();
+	await page.getByRole('button', { name: 'Bloom', exact: true }).click();
+	await page.getByRole('button', { name: 'Tree', exact: true }).click();
+	const desc = stage(page).locator('canvas [aria-label="Canvas Description"]');
+	await expect(desc).toContainText('1 bloom, 1 tree');
+
+	await undo.click();
+	await expect(desc).toContainText('with 1 bloom,');
+	await expect(redo).toBeEnabled();
+	await page.keyboard.press('ControlOrMeta+Shift+z');
+	await expect(desc).toContainText('1 bloom, 1 tree');
+	await page.keyboard.press('ControlOrMeta+z');
+	await page.keyboard.press('ControlOrMeta+z');
+	await expect(desc).toContainText('waiting for seeds');
+	await expect(undo).toBeDisabled();
+});

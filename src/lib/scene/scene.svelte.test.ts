@@ -91,4 +91,56 @@ describe('Scene', () => {
 			path: [-1, 0, 1, 0]
 		});
 	});
+
+	it('undoes and redoes discrete changes', () => {
+		const scene = new Scene();
+		scene.add('bloom', 0.2, 0.2);
+		scene.add('swarm', 0.4, 0.4);
+		expect(scene.canUndo).toBe(true);
+		scene.undo();
+		expect(scene.elements.map((e) => e.kind)).toEqual(['bloom']);
+		scene.undo();
+		expect(scene.elements).toEqual([]);
+		expect(scene.canUndo).toBe(false);
+		scene.redo();
+		scene.redo();
+		expect(scene.elements.map((e) => e.kind)).toEqual(['bloom', 'swarm']);
+		expect(scene.canRedo).toBe(false);
+	});
+
+	it('merges a burst of changes to one plant into a single undo step', () => {
+		let now = 0;
+		const scene = new Scene(Math.random, () => now);
+		const id = scene.add('bloom', 0.5, 0.5);
+		for (let i = 1; i <= 20; i++) {
+			now += 16;
+			scene.move(id, 0.5 + i * 0.01, 0.5);
+		}
+		now += 2000;
+		scene.update(id, { hue: 10 });
+		scene.undo();
+		expect(scene.elements[0].x).toBeCloseTo(0.7);
+		scene.undo();
+		expect(scene.elements[0]).toMatchObject({ x: 0.5, y: 0.5 });
+	});
+
+	it('drops the redo history when a new change is made', () => {
+		const scene = new Scene();
+		scene.add('bloom', 0.5, 0.5);
+		scene.undo();
+		scene.add('tree', 0.5, 0.5);
+		expect(scene.canRedo).toBe(false);
+		expect(scene.elements.map((e) => e.kind)).toEqual(['tree']);
+	});
+
+	it('restores the mood and keeps the selection only if its plant still exists', () => {
+		const scene = new Scene();
+		const id = scene.add('bloom', 0.5, 0.5);
+		scene.setMood({ backdrop: 'paper' });
+		scene.undo();
+		expect(scene.mood.backdrop).toBe('night');
+		expect(scene.selectedId).toBe(id);
+		scene.undo();
+		expect(scene.selectedId).toBeNull();
+	});
 });
