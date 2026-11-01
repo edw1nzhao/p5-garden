@@ -79,9 +79,9 @@ test('with nothing selected the panel sets the garden mood', async ({ page }) =>
 	await glow.click();
 	await expect(glow).toHaveAttribute('aria-pressed', 'true');
 	const react = page.getByRole('button', { name: 'React to pointer' });
-	await expect(react).toHaveAttribute('aria-pressed', 'true');
-	await react.click();
 	await expect(react).toHaveAttribute('aria-pressed', 'false');
+	await react.click();
+	await expect(react).toHaveAttribute('aria-pressed', 'true');
 	await page.getByRole('slider', { name: 'Wind' }).fill('0.6');
 	await expect(page.getByRole('slider', { name: 'Wind' })).toHaveValue('0.6');
 });
@@ -96,4 +96,10 @@ test('on a phone the inspector opens only from Tune, so the canvas stays clear',
 	await tune.click();
 	await expect(tune).toHaveAttribute('aria-pressed', 'true');
 	await expect(inspector.getByRole('heading', { name: 'Bloom' })).toBeVisible();
+});
+
+test('garden settings stay reachable while a plant is selected', async ({ page }) => {
+	await expect(page.getByRole('heading', { name: 'Bloom' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'React to pointer' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Dusk' })).toBeVisible();
 });

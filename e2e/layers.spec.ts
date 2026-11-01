@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const heading = (page: Page) =>
-	page.getByRole('complementary', { name: 'Selected plant' }).getByRole('heading');
+	page.getByRole('complementary', { name: 'Selected plant' }).getByRole('heading').first();
 
 test('clicking the same spot steps down through stacked plants', async ({ page }) => {
 	await page.goto('/');
