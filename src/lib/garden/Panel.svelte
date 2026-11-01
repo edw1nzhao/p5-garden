@@ -202,6 +202,19 @@
 				{/each}
 			</div>
 		</fieldset>
+
+		<fieldset>
+			<legend>Open palm</legend>
+			<button
+				type="button"
+				class="toggle"
+				aria-pressed={settings.sweepToClear}
+				title="Sweep an open palm across the camera to clear the garden"
+				onclick={() => (settings.sweepToClear = !settings.sweepToClear)}
+			>
+				Sweep to clear
+			</button>
+		</fieldset>
 	</div>
 </aside>
 

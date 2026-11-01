@@ -91,6 +91,11 @@ export function strokeFromPath(
 	};
 }
 
+/** The stroke reflected left to right across the centre of the stage. */
+export function mirrorStroke(shape: StrokeShape): StrokeShape {
+	return { ...shape, x: 1 - shape.x, path: shape.path.map((v, i) => (i % 2 === 0 ? -v || 0 : v)) };
+}
+
 /** Chaikin corner cutting: each pass replaces every corner with two points a quarter in. */
 export function smoothPath<T extends { x: number; y: number }>(
 	points: readonly T[],

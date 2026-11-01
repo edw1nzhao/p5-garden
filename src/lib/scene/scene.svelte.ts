@@ -59,6 +59,8 @@ export class Scene {
 	mood = $state<Mood>({ backdrop: 'night', wind: 0, glow: false, react: false });
 	/** The stroke being painted, as stage fractions; null when not painting. */
 	draft = $state<{ x: number; y: number }[] | null>(null);
+	/** Whether the draft is also being painted mirrored across the stage centre. */
+	draftMirror = $state(false);
 	selected = $derived(this.elements.find((e) => e.id === this.selectedId) ?? null);
 
 	#random: () => number;
@@ -119,9 +121,30 @@ export class Scene {
 		return this.#push({ kind, x: clamp(x, 0, 1), y: clamp(y, 0, 1), scale: 1 });
 	}
 
-	addStroke(brush: Brush, shape: StrokeShape): string {
+	addStroke(brush: Brush, shape: StrokeShape, hue?: number): string {
 		this.#record(null);
-		return this.#push({ kind: 'stroke', brush, ...shape });
+		return this.#pushStroke({ brush, shape, hue });
+	}
+
+	/** Adds several strokes as one undo step, selecting the last. */
+	addStrokes(strokes: { brush: Brush; shape: StrokeShape; hue?: number }[]): string[] {
+		if (strokes.length === 0) return [];
+		this.#record(null);
+		return strokes.map((s) => this.#pushStroke(s));
+	}
+
+	#pushStroke({ brush, shape, hue }: { brush: Brush; shape: StrokeShape; hue?: number }) {
+		const fields = hue === undefined ? {} : { hue: ((Math.round(hue) % 360) + 360) % 360 };
+		return this.#push({ kind: 'stroke', brush, ...shape, ...fields });
+	}
+
+	/** Removes every element as one undo step; false when the garden was already empty. */
+	clear(): boolean {
+		if (this.elements.length === 0) return false;
+		this.#record(null);
+		this.elements = [];
+		this.selectedId = null;
+		return true;
 	}
 
 	#push(fields: Pick<GardenElement, 'kind' | 'x' | 'y' | 'scale'> & Partial<GardenElement>) {

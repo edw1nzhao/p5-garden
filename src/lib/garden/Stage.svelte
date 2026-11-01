@@ -1,13 +1,21 @@
 <script lang="ts">
 	import { untrack, type Snippet } from 'svelte';
 	import { handEvent, type HandState } from '#lib/hands/gesture.js';
+	import { MODE_CONSTANTS, type Intents } from '#lib/hands/modes.js';
+	import { play } from '#lib/hands/play.svelte.js';
 	import { tracker } from '#lib/hands/tracker.svelte.js';
 	import { Sketch } from 'svelte-p5-components';
 	import { ExportButton } from 'svelte-p5-components/export';
 	import { prefersReducedMotion } from 'svelte/motion';
-	import { elementRadius, hitAll, smoothPath, strokeFromPath } from '#lib/scene/geometry.js';
+	import {
+		elementRadius,
+		hitAll,
+		mirrorStroke,
+		smoothPath,
+		strokeFromPath
+	} from '#lib/scene/geometry.js';
 	import type { Brush, Scene } from '#lib/scene/scene.svelte.js';
-	import { Maximize2, Move, RotateCw } from '@lucide/svelte';
+	import { Maximize2, Move, RotateCw, Undo2 } from '@lucide/svelte';
 	import { BACKDROPS } from './backdrops.js';
 	import { KINDS } from './kinds.js';
 	import { gardenSketch } from './sketch.js';
@@ -37,6 +45,13 @@
 	let cycle: { ids: string[]; x: number; y: number } | null = null;
 
 	let painting: { x: number; y: number }[] | null = null;
+	interface StrokeStyle {
+		brush: Brush;
+		mirror: boolean;
+		hue?: number;
+		byHand: boolean;
+	}
+	let strokeStyle: StrokeStyle | null = null;
 
 	let width = $state(0);
 	let height = $state(0);
@@ -49,6 +64,7 @@
 				elements: scene.elements,
 				mood: scene.mood,
 				draft: scene.draft,
+				mirror: scene.draftMirror,
 				view: [view.zoom, view.x, view.y],
 				hands: tracker.skeleton
 			};
@@ -117,6 +133,37 @@
 		return view.toWorld(screenPoint(e));
 	}
 
+	const HUE_STEP = 360 / MODE_CONSTANTS.hueSteps;
+	const HUE_STRIP = `linear-gradient(to bottom, ${Array.from(
+		{ length: MODE_CONSTANTS.hueSteps },
+		(_, i) =>
+			`hsl(${i * HUE_STEP} 85% 60%) ${(i / MODE_CONSTANTS.hueSteps) * 100}% ${((i + 1) / MODE_CONSTANTS.hueSteps) * 100}%`
+	).join(', ')})`;
+	/** The latched hue's place along the strip, in percent. */
+	const hueMarker = $derived(
+		(((play.intents.hue ?? 0) / HUE_STEP + 0.5) / MODE_CONSTANTS.hueSteps) * 100
+	);
+	let sweep = $state.raw<{ id: number; dir: 1 | -1 } | null>(null);
+	let toast = $state.raw<{ id: number } | null>(null);
+	let toastTimer: ReturnType<typeof setTimeout> | undefined;
+	const TOAST_MS = 6000;
+	const toastVisible = $derived(toast !== null && scene.elements.length === 0);
+
+	function wipe(dir: 1 | -1) {
+		if (!scene.clear()) return;
+		stack = null;
+		const id = (sweep?.id ?? 0) + 1;
+		sweep = prefersReducedMotion.current ? null : { id, dir };
+		toast = { id };
+		clearTimeout(toastTimer);
+		toastTimer = setTimeout(() => (toast = null), TOAST_MS);
+	}
+
+	function undoWipe() {
+		scene.undo();
+		toast = null;
+	}
+
 	function onStageDown(e: PointerEvent) {
 		if ((e.target as Element).closest('button')) return;
 		if (e.button === 1 || (e.button === 0 && spaceHeld)) {
@@ -132,12 +179,23 @@
 		element!.focus();
 	}
 
+	function handStyle(intents: Intents): StrokeStyle {
+		const { brush: forced, mirror, hue } = intents;
+		return { brush: forced ?? brush, mirror, hue: hue ?? undefined, byHand: true };
+	}
+
+	function startStroke(pt: { x: number; y: number }, style: StrokeStyle) {
+		scene.select(null);
+		painting = [pt];
+		strokeStyle = style;
+		scene.draftMirror = style.mirror;
+		scene.draft = [{ x: pt.x / width, y: pt.y / height }];
+	}
+
 	/** Starts painting or a move at a world point; false when the point hit nothing. */
-	function downAt(pt: { x: number; y: number }) {
-		if (tool === 'paint') {
-			scene.select(null);
-			painting = [pt];
-			scene.draft = [{ x: pt.x / width, y: pt.y / height }];
+	function downAt(pt: { x: number; y: number }, intents?: Intents) {
+		if (tool === 'paint' || intents?.paints) {
+			startStroke(pt, intents ? handStyle(intents) : { brush, mirror: false, byHand: false });
 			return true;
 		}
 		const hits = hitAll(scene.elements, pt.x, pt.y, stage);
@@ -219,16 +277,36 @@
 
 	// A pinch acts like a press: pinch to grab or start painting, move, open the fingers to let go.
 	let prevHand: HandState | null = null;
+	let handDriven = false;
 	$effect(() => {
-		const next = tracker.hand;
-		const event = handEvent(prevHand, next);
-		prevHand = next && { pointer: { ...next.pointer }, pinching: next.pinching };
-		if (!event || event === 'hover' || !width) return;
-		const pt = next && view.toWorld({ x: next.pointer.x * width, y: next.pointer.y * height });
+		const hands = tracker.hands;
 		untrack(() => {
-			if (event === 'down' && pt) downAt(pt);
-			else if (event === 'move' && pt) moveTo(pt);
-			else if (event === 'up') onUp();
+			const intents = play.update(hands, performance.now(), stage);
+			if (intents.cancel && handDriven) cancelHandAction();
+			if (intents.wipe && intents.wipeDir) wipe(intents.wipeDir);
+			if (intents.view) {
+				const { dx, dy, factor, cx, cy } = intents.view;
+				view.panBy(dx, dy);
+				view.zoomAt(factor, cx, cy);
+			}
+			const next: HandState | null = hands.drawing && {
+				pointer: { ...hands.drawing.pointer },
+				pinching: intents.pinching
+			};
+			const event = handEvent(prevHand, next);
+			prevHand = next;
+			if (!event || event === 'hover' || !width) return;
+			const pt = next && view.toWorld({ x: next.pointer.x * width, y: next.pointer.y * height });
+			if (event === 'down' && pt) {
+				handDriven = true;
+				downAt(pt, intents);
+			} else if (event === 'move' && pt) {
+				switchBrush(intents);
+				moveTo(pt);
+			} else if (event === 'up') {
+				handDriven = false;
+				onUp();
+			}
 		});
 	});
 
@@ -241,11 +319,45 @@
 			stack = { index: next + 1, total: cycle.ids.length };
 		}
 		cycle = null;
+		finishStroke();
+	}
+
+	function finishStroke() {
 		if (!painting) return;
-		if (painting.length >= 3)
-			scene.addStroke(brush, strokeFromPath(smoothPath(painting, 2), stage));
+		if (painting.length >= 3 && strokeStyle) {
+			const { brush: b, mirror, hue } = strokeStyle;
+			const shape = strokeFromPath(smoothPath(painting, 2), stage);
+			if (mirror)
+				scene.addStrokes([
+					{ brush: b, shape, hue },
+					{ brush: b, shape: mirrorStroke(shape), hue }
+				]);
+			else scene.addStroke(b, shape, hue);
+		}
 		painting = null;
+		strokeStyle = null;
 		scene.draft = null;
+		scene.draftMirror = false;
+	}
+
+	/** Ends the current stroke and carries on from the same point when the off hand changes brush. */
+	function switchBrush(intents: Intents) {
+		if (!painting || !strokeStyle?.byHand || !intents.paints) return;
+		const next = handStyle(intents);
+		if (next.brush === strokeStyle.brush && next.mirror === strokeStyle.mirror) return;
+		const from = painting[painting.length - 1];
+		finishStroke();
+		startStroke(from, next);
+	}
+
+	/** Abandons whatever the drawing hand was doing, without committing it. */
+	function cancelHandAction() {
+		painting = null;
+		strokeStyle = null;
+		scene.draft = null;
+		scene.draftMirror = false;
+		gesture = null;
+		cycle = null;
 	}
 
 	function onWheel(e: WheelEvent) {
@@ -324,6 +436,29 @@
 	onkeydown={onKey}
 >
 	<Sketch {sketch} {description} {bridge} loop={prefersReducedMotion.current ? 'demand' : 'always'}>
+		{#if play.intents.picking}
+			<div
+				class="hues"
+				style="top: {MODE_CONSTANTS.hueTop * 100}%; bottom: {(1 - MODE_CONSTANTS.hueBottom) *
+					100}%; background: {HUE_STRIP};"
+				data-testid="hue-strip"
+				aria-hidden="true"
+			>
+				<span class="marker" style="top: {hueMarker}%; --hue: {play.intents.hue ?? 0}"></span>
+			</div>
+		{/if}
+		{#if sweep}
+			{#key sweep.id}
+				<div class="sweep" class:left={sweep.dir < 0} aria-hidden="true"></div>
+			{/key}
+		{/if}
+		{#if toastVisible}
+			<div class="toast glass" role="status">
+				<span>Garden cleared</span>
+				<button type="button" onclick={undoWipe}><Undo2 size={14} aria-hidden="true" /> Undo</button
+				>
+			</div>
+		{/if}
 		<div class="actions">
 			{@render actions?.()}
 			<ExportButton position="static" options={POSTER} class="poster">Save poster</ExportButton>
@@ -386,6 +521,91 @@
 		border-radius: 50%;
 		background: rgb(165 180 252 / 0.12);
 		pointer-events: none;
+	}
+	.hues {
+		position: absolute;
+		left: 4px;
+		width: 10px;
+		border-radius: var(--radius-pill);
+		box-shadow: 0 0 0 1px rgb(0 0 0 / 0.45);
+		pointer-events: none;
+		z-index: 2;
+	}
+	.marker {
+		position: absolute;
+		left: -4px;
+		width: 18px;
+		height: 18px;
+		margin-top: -9px;
+		border-radius: 50%;
+		background: hsl(var(--hue) 85% 60%);
+		box-shadow:
+			0 0 0 2px #fff,
+			0 0 0 3px rgb(0 0 0 / 0.5);
+	}
+	.sweep {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		pointer-events: none;
+		background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28) 50%, transparent);
+		animation: sweep 450ms ease-out forwards;
+	}
+	.sweep.left {
+		animation-name: sweep-left;
+	}
+	@keyframes sweep {
+		from {
+			transform: translateX(-100%);
+		}
+		to {
+			transform: translateX(100%);
+		}
+	}
+	@keyframes sweep-left {
+		from {
+			transform: translateX(100%);
+		}
+		to {
+			transform: translateX(-100%);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.sweep {
+			display: none;
+		}
+	}
+	.toast {
+		position: absolute;
+		left: 50%;
+		bottom: 128px;
+		transform: translateX(-50%);
+		z-index: 3;
+		display: flex;
+		align-items: center;
+		gap: calc(var(--space) * 3);
+		padding: calc(var(--space) * 2) calc(var(--space) * 2) calc(var(--space) * 2)
+			calc(var(--space) * 4);
+		border-radius: var(--radius-pill);
+		font-size: var(--text-sm);
+		white-space: nowrap;
+	}
+	.toast button {
+		display: inline-flex;
+		align-items: center;
+		gap: calc(var(--space) * 1.5);
+		height: calc(var(--space) * 7);
+		padding: 0 calc(var(--space) * 3);
+		border: 0;
+		border-radius: var(--radius-pill);
+		background: var(--accent-strong);
+		color: var(--fg);
+		font: inherit;
+		cursor: pointer;
+	}
+	.toast button:focus-visible {
+		outline: 2px solid var(--accent-soft);
+		outline-offset: 2px;
 	}
 	.actions {
 		position: absolute;

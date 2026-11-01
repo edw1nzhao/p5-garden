@@ -13,6 +13,7 @@ function stubStorage(initial: Record<string, string> = {}) {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	settings.drawingHand = 'Right';
+	settings.sweepToClear = true;
 });
 
 describe('settings', () => {
@@ -23,11 +24,29 @@ describe('settings', () => {
 	it('saves the drawing hand under one key and loads it back', () => {
 		const data = stubStorage();
 		settings.drawingHand = 'Left';
-		expect(JSON.parse(data.get(SETTINGS_KEY)!)).toEqual({ drawingHand: 'Left' });
+		expect(JSON.parse(data.get(SETTINGS_KEY)!)).toEqual({
+			drawingHand: 'Left',
+			sweepToClear: true
+		});
 		settings.drawingHand = 'Right';
 		data.set(SETTINGS_KEY, JSON.stringify({ drawingHand: 'Left' }));
 		settings.load();
 		expect(settings.drawingHand).toBe('Left');
+	});
+
+	it('keeps sweep to clear on by default and saves the choice', () => {
+		const data = stubStorage();
+		expect(settings.sweepToClear).toBe(true);
+		settings.sweepToClear = false;
+		expect(JSON.parse(data.get(SETTINGS_KEY)!)).toEqual({
+			drawingHand: 'Right',
+			sweepToClear: false
+		});
+		settings.sweepToClear = true;
+		data.set(SETTINGS_KEY, JSON.stringify({ sweepToClear: false }));
+		settings.load();
+		expect(settings.sweepToClear).toBe(false);
+		expect(settings.drawingHand).toBe('Right');
 	});
 
 	it('ignores junk and keeps working when storage throws', () => {

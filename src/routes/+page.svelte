@@ -5,6 +5,7 @@
 	import { View } from '#lib/garden/view.svelte.js';
 	import Panel from '#lib/garden/Panel.svelte';
 	import CodePanel from '#lib/garden/CodePanel.svelte';
+	import HandsLegend from '#lib/hands/HandsLegend.svelte';
 	import { tracker } from '#lib/hands/tracker.svelte.js';
 	import { onMount } from 'svelte';
 	import {
@@ -307,6 +308,10 @@
 		<div id="inspector" class="inspector glass">
 			<Panel {scene} />
 		</div>
+	{/if}
+
+	{#if tracker.status === 'on'}
+		<HandsLegend />
 	{/if}
 
 	<figure class="cam glass" class:on={tracker.status === 'on'}>

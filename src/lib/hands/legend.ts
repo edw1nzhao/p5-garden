@@ -1,0 +1,23 @@
+import type { Mode } from './modes.js';
+
+export interface LegendEntry {
+	mode: Exclude<Mode, 'none'>;
+	gesture: string;
+	effect: string;
+	/** Hue of the badge tint and the legend dot. */
+	hue: number;
+}
+
+export const LEGEND: readonly LegendEntry[] = [
+	{ mode: 'vine', gesture: 'Fist', effect: 'Paint with vine', hue: 130 },
+	{ mode: 'silk', gesture: 'One finger', effect: 'Paint with silk', hue: 280 },
+	{ mode: 'shimmer', gesture: 'Two fingers', effect: 'Paint with shimmer', hue: 50 },
+	{ mode: 'mirror', gesture: 'Three fingers', effect: 'Mirror what you paint', hue: 190 },
+	{ mode: 'colour', gesture: 'L shape', effect: 'Raise or lower to pick a colour', hue: 330 },
+	{ mode: 'breeze', gesture: 'Open hand', effect: 'Wave for a breeze, sweep to clear', hue: 205 },
+	{ mode: 'zoom', gesture: 'Both pinch', effect: 'Spread, squeeze and drag to zoom', hue: 160 }
+];
+
+export const MODE_HUE: Partial<Record<Mode, number>> = Object.fromEntries(
+	LEGEND.map((e) => [e.mode, e.hue])
+);
