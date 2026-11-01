@@ -1,12 +1,12 @@
+import { asset } from '$app/paths';
 import type { HandLandmarker } from '@mediapipe/tasks-vision';
 import { settings } from '../settings.svelte.js';
 import { serializeClip, type Handedness, toRawFrame, type RawFrame } from './frames.js';
 import { createPipeline, NO_HANDS, type HandsState, type Pipeline } from './pipeline.js';
 import { createWithFallback, FrameStats, type Delegate } from './timing.js';
 
-const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm';
-const MODEL =
-	'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const MODEL = () => asset('mediapipe/hand_landmarker.task');
+const WASM = () => MODEL().replace(/\/[^/]+$/, '/wasm');
 
 type Status = 'off' | 'loading' | 'on' | 'error';
 
@@ -47,6 +47,8 @@ export class HandTracker {
 		this.message = '';
 		try {
 			this.#video = video;
+			addEventListener('pagehide', this.#release);
+			document.addEventListener('visibilitychange', this.#onVisibility);
 			this.#stream = await navigator.mediaDevices.getUserMedia({
 				video: { width: 640, height: 480, facingMode: 'user' },
 				audio: false
@@ -54,10 +56,10 @@ export class HandTracker {
 			video.srcObject = this.#stream;
 			await video.play();
 			const { FilesetResolver, HandLandmarker } = await import('@mediapipe/tasks-vision');
-			const fileset = await FilesetResolver.forVisionTasks(WASM);
+			const fileset = await FilesetResolver.forVisionTasks(WASM());
 			const { value, delegate } = await createWithFallback((delegate) =>
 				HandLandmarker.createFromOptions(fileset, {
-					baseOptions: { modelAssetPath: MODEL, delegate },
+					baseOptions: { modelAssetPath: MODEL(), delegate },
 					runningMode: 'VIDEO',
 					numHands: 2
 				})
@@ -81,7 +83,15 @@ export class HandTracker {
 		}
 	}
 
+	#release = () => this.stop();
+
+	#onVisibility = () => {
+		if (document.hidden) this.stop();
+	};
+
 	stop() {
+		removeEventListener('pagehide', this.#release);
+		document.removeEventListener('visibilitychange', this.#onVisibility);
 		if (this.#usingVfc) this.#video?.cancelVideoFrameCallback(this.#frame);
 		else cancelAnimationFrame(this.#frame);
 		this.#stream?.getTracks().forEach((track) => track.stop());
