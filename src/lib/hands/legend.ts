@@ -15,7 +15,12 @@ export const LEGEND: readonly LegendEntry[] = [
 	{ mode: 'mirror', gesture: 'Three fingers', effect: 'Mirror what you paint', hue: 190 },
 	{ mode: 'colour', gesture: 'L shape', effect: 'Raise or lower to pick a colour', hue: 330 },
 	{ mode: 'breeze', gesture: 'Open hand', effect: 'Wave for a breeze', hue: 205 },
-	{ mode: 'zoom', gesture: 'Both pinch', effect: 'Spread, squeeze and drag to zoom', hue: 160 }
+	{
+		mode: 'zoom',
+		gesture: 'Both pinch',
+		effect: 'Zoom the canvas, or resize and turn a held plant',
+		hue: 160
+	}
 ];
 
 export const MODE_HUE: Partial<Record<Mode, number>> = Object.fromEntries(

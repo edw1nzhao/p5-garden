@@ -362,3 +362,119 @@ describe('two-hand zoom and pan', () => {
 		expect(out).toMatchObject({ mode: 'none', view: null, cancel: false, pinching: false });
 	});
 });
+
+describe('two-hand scale and rotate of a held plant', () => {
+	const pair = (a: [number, number], b: [number, number], crossing = false): HandsState => ({
+		drawing: reading({ id: 1, pinching: true, pointer: { x: a[0], y: a[1] } }),
+		off: reading({ id: 2, pinching: true, pointer: { x: b[0], y: b[1] } }),
+		crossing
+	});
+	const held = () => createModes({ grabbing: () => true });
+	/** Two pinches `span` stage pixels apart, the line between them turned `deg` from horizontal. */
+	const at = (span: number, deg: number): HandsState => {
+		const r = (deg * Math.PI) / 180;
+		const dx = (Math.cos(r) * span) / 2 / SIZE.width;
+		const dy = (Math.sin(r) * span) / 2 / SIZE.height;
+		return pair([0.5 - dx, 0.5 - dy], [0.5 + dx, 0.5 + dy]);
+	};
+
+	it('starts at scale 1 and no turn, cancels the grab, and does not move the view', () => {
+		const [enter] = run(held(), [at(200, 0)]);
+		expect(enter).toMatchObject({ mode: 'zoom', cancel: true, view: null, pinching: false });
+		expect(enter.transform).toEqual({ scale: 1, rotation: 0 });
+	});
+
+	it('gives scale as an absolute ratio to the start, not a per-frame product', () => {
+		const out = run(held(), [at(200, 0), at(300, 0), at(150, 0), at(400, 0)]);
+		expect(out.map((o) => o.transform!.scale)).toEqual([1, 1.5, 0.75, 2]);
+		expect(out.every((o) => o.view === null)).toBe(true);
+	});
+
+	it('gives rotation as the change in the angle between the pinches', () => {
+		const out = run(held(), [at(200, 10), at(200, 40), at(200, -20)]);
+		expect(out[1].transform!.rotation).toBeCloseTo((30 * Math.PI) / 180);
+		expect(out[2].transform!.rotation).toBeCloseTo((-30 * Math.PI) / 180);
+	});
+
+	it('keeps turning the same way across the +/-180 degree seam', () => {
+		const degrees = [170, 175, 180, -175, -170, -160];
+		const out = run(
+			held(),
+			degrees.map((d) => at(200, d))
+		);
+		const turned = out.map((o) => (o.transform!.rotation * 180) / Math.PI);
+		expect(turned[3]).toBeCloseTo(15);
+		expect(turned[5]).toBeCloseTo(30);
+		expect(turned.every((t, i) => i === 0 || t > turned[i - 1] - 1e-9)).toBe(true);
+	});
+
+	it('turns the other way across the seam without a jump', () => {
+		const out = run(held(), [at(200, -170), at(200, -178), at(200, 175), at(200, 168)]);
+		expect((last(out).transform!.rotation * 180) / Math.PI).toBeCloseTo(-22);
+	});
+
+	it('accumulates more than a full turn', () => {
+		const degrees = Array.from({ length: 25 }, (_, i) => i * 20 - 180);
+		const out = run(
+			held(),
+			degrees.map((d) => at(200, d))
+		);
+		expect((last(out).transform!.rotation * 180) / Math.PI).toBeCloseTo(480);
+	});
+
+	it('holds the angle and clamps the scale while the pinches nearly touch', () => {
+		const out = run(held(), [at(200, 0), at(2, 90), at(200, 30)]);
+		expect(out[1].transform!.scale).toBeCloseTo(MODE_CONSTANTS.zoomMinSpan / 200);
+		expect(out[1].transform!.rotation).toBe(0);
+		expect(out[2].transform!.rotation).toBeCloseTo((30 * Math.PI) / 180);
+	});
+
+	it('still zooms the canvas when the drawing hand was not on a plant', () => {
+		const modes = createModes({ grabbing: () => false });
+		const out = run(modes, [at(200, 0), at(300, 20)]);
+		expect(out.every((o) => o.transform === null)).toBe(true);
+		expect(out[1].view!.factor).toBeCloseTo(1.5);
+	});
+
+	it('asks whether a plant is held only when the two-pinch begins', () => {
+		let calls = 0;
+		const modes = createModes({ grabbing: () => (calls++, true) });
+		run(modes, [at(200, 0), at(210, 0), at(220, 0)]);
+		expect(calls).toBe(1);
+	});
+
+	it('ends when either hand releases, and the remaining pinch must release first', () => {
+		const modes = held();
+		run(modes, [at(200, 0), at(300, 0)]);
+		const offLetGo = hands({ pinching: false }, { pinching: true });
+		const ended = run(modes, repeat(offLetGo, 3), 100);
+		expect(ended.every((o) => o.transform === null && !o.pinching)).toBe(true);
+		const free = run(modes, [hands({ pinching: false }, { pinching: false })], 200)[0];
+		expect(free.pinching).toBe(false);
+		expect(run(modes, [hands({}, { pinching: true })], 300)[0].pinching).toBe(true);
+	});
+
+	it('starts afresh on the next gesture', () => {
+		const modes = held();
+		run(modes, [at(200, 0), at(400, 90)]);
+		run(modes, [hands({}, { pinching: false })], 100);
+		const [again, grow] = run(modes, [at(100, 45), at(150, 45)], 200);
+		expect(again.transform).toEqual({ scale: 1, rotation: 0 });
+		expect(grow.transform!.scale).toBeCloseTo(1.5);
+		expect(grow.transform!.rotation).toBeCloseTo(0);
+	});
+
+	it('does nothing while the hands cross, and ends the transform if they start to', () => {
+		const crossed = run(held(), repeat(pair([0.4, 0.5], [0.45, 0.5], true), 3));
+		expect(crossed.every((o) => o.transform === null && !o.cancel)).toBe(true);
+		const modes = held();
+		run(modes, [at(200, 0), at(220, 0)]);
+		const out = run(modes, [pair([0.4, 0.5], [0.6, 0.5], true)], 100)[0];
+		expect(out).toMatchObject({ mode: 'none', transform: null, view: null, pinching: false });
+	});
+
+	it('needs both pinches', () => {
+		const out = last(run(held(), repeat(hands({ pinching: false }, { pinching: true }), 3)));
+		expect(out.transform).toBeNull();
+	});
+});
