@@ -81,6 +81,7 @@ function ruleConfidence(m: Measures, shape: Shape): number {
 export class ShapeClassifier {
 	#extended = [false, false, false, false];
 	#thumbOut = false;
+	#pinching = false;
 	#templates: Templates | null;
 
 	/** With `templates` the user's own calibration decides the shape instead of the fixed rules. */
@@ -93,8 +94,9 @@ export class ShapeClassifier {
 		const m = measure(landmarks, aspect);
 		this.#extended = m.fingers.map((f, i) => f > (this.#extended[i] ? EXTEND_EXIT : EXTEND_ENTER));
 		this.#thumbOut = m.thumb > (this.#thumbOut ? THUMB_EXIT : THUMB_ENTER);
-		const closedFist = m.fingers[0] < FIST_TIGHT;
-		if (pinching && !closedFist) return { shape: 'pinch', pinching: true, confidence: 1 };
+		// A tucked index stops a fist starting a pinch, but never ends one already held.
+		this.#pinching = pinching && (this.#pinching || m.fingers[0] >= FIST_TIGHT);
+		if (this.#pinching) return { shape: 'pinch', pinching: true, confidence: 1 };
 		if (this.#templates) return { ...classifyByTemplates(m, this.#templates), pinching: false };
 		const shape = shapeOf(this.#extended, this.#thumbOut);
 		return { shape, pinching: false, confidence: ruleConfidence(m, shape) };

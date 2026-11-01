@@ -98,3 +98,25 @@ describe('pipeline with calibrated templates', () => {
 		expect(out.drawing!.measures.fingers).toHaveLength(4);
 	});
 });
+
+describe('a held pinch', () => {
+	const run = (poses: Pose[]) => {
+		const pipeline = createPipeline();
+		return poses.map((pose, i) => pipeline(frame(i, [at(0.3, pose, 'Right')])).drawing!.pinching);
+	};
+	const repeat = (pose: Pose, n: number): Pose[] => Array(n).fill(pose);
+
+	it('survives the index curling into the palm mid-stroke', () => {
+		const states = run([...repeat('pinch', 6), ...repeat('fist', 10)]);
+		expect(states.slice(states.indexOf(true))).not.toContain(false);
+	});
+
+	it('survives a one- or two-frame blip of open fingers, but ends on a real release', () => {
+		for (const blip of [1, 2]) {
+			const states = run([...repeat('pinch', 8), ...repeat('open', blip), ...repeat('pinch', 8)]);
+			expect(states.slice(states.indexOf(true)), `${blip}-frame blip`).not.toContain(false);
+		}
+		const released = run([...repeat('pinch', 8), ...repeat('open', 8)]);
+		expect(released.at(-1)).toBe(false);
+	});
+});

@@ -45,6 +45,8 @@ export const NO_HANDS: HandsState = { drawing: null, off: null, crossing: false 
 
 // The pointer is filtered in pixels of a nominal 640-wide frame, the units beta is tuned in.
 const PX = 640;
+// Open-finger frames in a row before a held pinch lets go, so tracking blips don't end strokes.
+const RELEASE_FRAMES = 4;
 
 /** Filters, shape state and the last reading for whichever hand holds one role. */
 class SlotReader {
@@ -56,6 +58,7 @@ class SlotReader {
 	#shape = new Debounced<Shape>('none');
 	#prev: HandReading | null = null;
 	#id: number | null = null;
+	#openFrames = 0;
 
 	get pinching() {
 		return !!this.#prev?.pinching;
@@ -83,11 +86,12 @@ class SlotReader {
 		const ratio = this.#fr.filter(pinchRatio(landmarks, frame.aspect), frame.time);
 		const candidate = isPinching(ratio, wasPinching) && (wasPinching || !crossing);
 		const measures = measure(landmarks, frame.aspect);
-		const { shape, pinching, confidence } = this.#classifier.read(
-			landmarks,
-			frame.aspect,
-			candidate
-		);
+		const read = this.#classifier.read(landmarks, frame.aspect, candidate);
+		this.#openFrames = read.pinching || !wasPinching ? 0 : this.#openFrames + 1;
+		const held = !read.pinching && wasPinching && this.#openFrames < RELEASE_FRAMES;
+		const { shape, pinching, confidence } = held
+			? { ...read, shape: 'pinch' as const, pinching: true }
+			: read;
 		return (this.#prev = {
 			id: tracked.id,
 			pointer: {
