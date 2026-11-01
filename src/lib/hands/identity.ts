@@ -25,8 +25,6 @@ export interface SlotOptions {
 	gate?: number;
 	/** Wrist distance, in frame widths, below which the hands count as crossing. */
 	crossing?: number;
-	/** How long a lone off hand waits before it takes over drawing. */
-	promoteMs?: number;
 }
 
 // Unverified: MediaPipe's docs say labels name the user's own hands for unmirrored input.
@@ -44,6 +42,8 @@ interface Track {
 	vel: Vec;
 	seen: number;
 	born: number;
+	/** Running vote for the user's own right hand (+1) or left (-1), weighted by score. */
+	belief: number;
 }
 
 interface Detection {
@@ -56,12 +56,15 @@ const other = (role: Role): Role => (role === 'drawing' ? 'off' : 'drawing');
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
 const usersHand = (hand: RawHand): Handedness =>
 	LABEL_IS_USERS_HAND ? hand.label : hand.label === 'Left' ? 'Right' : 'Left';
+const vote = (hand: RawHand) => (usersHand(hand) === 'Right' ? 1 : -1) * hand.score;
+// How fast a hand's label vote follows new frames, and how sure it must be to change role.
+const BELIEF_RATE = 0.2;
+const ROLE_MARGIN = 0.3;
 
 /** Two role slots fed by MediaPipe's unordered hands, matched by where each wrist was heading. */
 export class HandSlots {
 	#tracks: Record<Role, Track | null> = { drawing: null, off: null };
 	#nextId = 1;
-	#drawingEmptySince = -Infinity;
 	#options: Required<SlotOptions>;
 
 	constructor(options: SlotOptions = {}) {
@@ -70,20 +73,17 @@ export class HandSlots {
 			graceMs: 300,
 			gate: 0.25,
 			crossing: 0.15,
-			promoteMs: 300,
 			...options
 		};
 	}
 
-	update(frame: RawFrame): SlotFrame {
-		const { graceMs, crossing: crossAt, promoteMs } = this.#options;
+	/** `locked` while the drawing hand is mid-stroke, so roles cannot change under it. */
+	update(frame: RawFrame, { locked = false }: { locked?: boolean } = {}): SlotFrame {
+		const { graceMs, crossing: crossAt } = this.#options;
 		const time = frame.time;
 		for (const role of ROLES) {
 			const track = this.#tracks[role];
-			if (track && time - track.seen > graceMs) {
-				this.#tracks[role] = null;
-				if (role === 'drawing') this.#drawingEmptySince = time;
-			}
+			if (track && time - track.seen > graceMs) this.#tracks[role] = null;
 		}
 
 		const detections = [...frame.hands]
@@ -105,12 +105,7 @@ export class HandSlots {
 			if (!crossing) this.#birth(born, time);
 		}
 
-		const lone = this.#tracks.off;
-		if (!this.#tracks.drawing && lone && !crossing) {
-			if (time - Math.max(lone.born, this.#drawingEmptySince) >= promoteMs) {
-				this.#tracks = { drawing: lone, off: null };
-			}
-		}
+		if (!crossing && !locked) this.#assignRoles();
 
 		const out = (role: Role) => {
 			const track = this.#tracks[role];
@@ -142,6 +137,21 @@ export class HandSlots {
 		return new Map(best.map((p) => [p.role, p.d]));
 	}
 
+	/** The dominant hand draws; a tie keeps the current roles. */
+	#assignRoles() {
+		const sign = this.#options.drawingHand === 'Right' ? 1 : -1;
+		const { drawing, off } = this.#tracks;
+		const dominance = (t: Track) => t.belief * sign;
+		if (drawing && off) {
+			if (dominance(off) - dominance(drawing) > ROLE_MARGIN)
+				this.#tracks = { drawing: off, off: drawing };
+		} else if (drawing && dominance(drawing) < -ROLE_MARGIN) {
+			this.#tracks = { drawing: null, off: drawing };
+		} else if (off && dominance(off) > ROLE_MARGIN) {
+			this.#tracks = { drawing: off, off: null };
+		}
+	}
+
 	#follow(track: Track, detection: Detection, time: number) {
 		const dt = time - track.seen;
 		if (dt > 0) {
@@ -150,6 +160,7 @@ export class HandSlots {
 			track.vel = { x: (track.vel.x + vx) / 2, y: (track.vel.y + vy) / 2 };
 		}
 		track.pos = detection.pos;
+		track.belief += BELIEF_RATE * (vote(detection.hand) - track.belief);
 		track.hand = detection.hand;
 		track.seen = time;
 	}
@@ -162,7 +173,8 @@ export class HandSlots {
 			pos: d.pos,
 			vel: { x: 0, y: 0 },
 			seen: time,
-			born: time
+			born: time,
+			belief: vote(d.hand)
 		});
 		if (born.length === 2 && !this.#tracks.drawing && !this.#tracks.off) {
 			const [a, b] = born;

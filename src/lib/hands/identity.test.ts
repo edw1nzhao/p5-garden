@@ -80,16 +80,38 @@ describe('HandSlots', () => {
 		expect(wristX(tie.drawing?.hand)).toBeCloseTo(0.3);
 	});
 
-	it('lets a lone off hand draw once it has been alone for a moment', () => {
+	it('keeps a lone non-dominant hand off, however long it is alone', () => {
 		const slots = new HandSlots({ drawingHand: 'Right' });
-		const first = slots.update(frame(0, [at(0.7, 0.7, 'open', 'Left')]));
-		expect(first.drawing).toBeNull();
-		expect(first.off).not.toBeNull();
-		let out = first;
-		for (let i = 1; i <= 10; i++) out = slots.update(frame(i, [at(0.7, 0.7, 'open', 'Left')]));
-		expect(out.drawing?.id).toBe(first.off!.id);
-		const later = slots.update(frame(11, [at(0.7, 0.7, 'open', 'Left'), at(0.3)]));
-		expect(later.drawing?.id).toBe(first.off!.id);
+		let out = slots.update(frame(0, [at(0.7, 0.7, 'open', 'Left')]));
+		for (let i = 1; i <= 30; i++) out = slots.update(frame(i, [at(0.7, 0.7, 'open', 'Left')]));
+		expect(out.drawing).toBeNull();
+		expect(out.off).not.toBeNull();
+	});
+
+	it('gives drawing to the dominant hand as soon as it appears, whichever came first', () => {
+		for (const drawingHand of ['Right', 'Left'] as const) {
+			const other = drawingHand === 'Right' ? 'Left' : 'Right';
+			const slots = new HandSlots({ drawingHand });
+			const early = slots.update(frame(0, [at(0.7, 0.7, 'open', other)]));
+			for (let i = 1; i <= 10; i++) slots.update(frame(i, [at(0.7, 0.7, 'open', other)]));
+			const both = slots.update(
+				frame(11, [at(0.7, 0.7, 'open', other), at(0.3, 0.7, 'open', drawingHand)])
+			);
+			expect(wristX(both.drawing?.hand)).toBeCloseTo(0.3);
+			expect(both.off?.id).toBe(early.off!.id);
+		}
+	});
+
+	it('moves a hand first misread as dominant to off once its label settles, but not mid-stroke', () => {
+		const run = (locked: boolean) => {
+			const slots = new HandSlots({ drawingHand: 'Right' });
+			let out = slots.update(frame(0, [at(0.6, 0.7, 'open', 'Right')]));
+			for (let i = 1; i <= 20; i++)
+				out = slots.update(frame(i, [at(0.6, 0.7, 'open', 'Left')]), { locked });
+			return out;
+		};
+		expect(run(false).drawing).toBeNull();
+		expect(run(true).drawing).not.toBeNull();
 	});
 
 	it('reads labels as the user’s own hands (unverified until the webcam check)', () => {

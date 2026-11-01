@@ -42,6 +42,10 @@ class SlotReader {
 	#prev: HandReading | null = null;
 	#id: number | null = null;
 
+	get pinching() {
+		return !!this.#prev?.pinching;
+	}
+
 	constructor(pointer: OneEuroOptions, pinch: OneEuroOptions) {
 		this.#fx = new OneEuro(pointer);
 		this.#fy = new OneEuro(pointer);
@@ -87,7 +91,7 @@ export function createPipeline(options: PipelineOptions = {}): Pipeline {
 	const drawing = new SlotReader(pointerFilter, pinchFilter);
 	const off = new SlotReader(pointerFilter, pinchFilter);
 	return (frame) => {
-		const tracked = slots.update(frame);
+		const tracked = slots.update(frame, { locked: drawing.pinching });
 		return {
 			drawing: drawing.read(tracked.drawing, frame, tracked.crossing),
 			off: off.read(tracked.off, frame, tracked.crossing),
