@@ -3,6 +3,10 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!-- p5's bundled zod probes eval, which a strict CSP reports even when caught; jitless skips it. -->
+		<script nonce="%sveltekit.nonce%">
+			globalThis.__zod_globalConfig = { jitless: true };
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
