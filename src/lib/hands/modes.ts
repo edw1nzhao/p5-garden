@@ -44,6 +44,14 @@ export interface ViewDelta {
 	dy: number;
 }
 
+/** A held plant's change since the two-hand gesture began, never per-frame. */
+export interface TransformDelta {
+	/** Current pinch span over the span at the start. */
+	scale: number;
+	/** Unwrapped change in the angle between the pinches, in radians. */
+	rotation: number;
+}
+
 export interface Intents {
 	mode: Mode;
 	/** Brush forced by the off hand; null leaves the toolbar's brush. */
@@ -62,6 +70,8 @@ export interface Intents {
 	clearProgress: number;
 	/** Zoom and pan to apply this update. */
 	view: ViewDelta | null;
+	/** Resize and turn the held plant instead of the view; the first update is the identity. */
+	transform: TransformDelta | null;
 	/** Abandon the drawing hand's current action (fires for one update). */
 	cancel: boolean;
 	/** The drawing hand's pinch as the canvas should see it. */
@@ -79,6 +89,7 @@ export const IDLE: Intents = {
 	wipe: false,
 	clearProgress: 0,
 	view: null,
+	transform: null,
 	cancel: false,
 	pinching: false
 };
@@ -94,6 +105,8 @@ export interface ModeOptions {
 	constants?: Partial<ModeConstants>;
 	/** Read on every update; false while the garden is empty. */
 	canClear?: () => boolean;
+	/** Read when two pinches begin: true while the drawing hand holds a plant. */
+	grabbing?: () => boolean;
 }
 
 export interface Modes {
@@ -103,7 +116,11 @@ export interface Modes {
 	gustAt(time: number): number;
 }
 
-export function createModes({ constants, canClear = () => true }: ModeOptions = {}): Modes {
+export function createModes({
+	constants,
+	canClear = () => true,
+	grabbing = () => false
+}: ModeOptions = {}): Modes {
 	const c = { ...MODE_CONSTANTS, ...constants };
 	let hue: number | null = null;
 	let gust = 0;
@@ -112,7 +129,15 @@ export function createModes({ constants, canClear = () => true }: ModeOptions = 
 	let prevWrist: { x: number; t: number } | null = null;
 	let hold: { start: number; drawing: Vec; off: Vec } | null = null;
 	let cooldownUntil = -Infinity;
-	let zoom: { span: number; x: number; y: number } | null = null;
+	let zoom: {
+		span: number;
+		x: number;
+		y: number;
+		angle: number;
+		held: boolean;
+		startSpan: number;
+		turned: number;
+	} | null = null;
 	let blocked = false;
 
 	const gustAt = (time: number) => gust * Math.exp(-Math.max(0, time - gustTime) / c.gustDecayMs);
@@ -154,23 +179,42 @@ export function createModes({ constants, canClear = () => true }: ModeOptions = 
 		return { progress: 0, fire: true };
 	}
 
-	function pinchZoom(
+	const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+	function pinch(
 		a: HandReading,
 		b: HandReading,
 		size: { width: number; height: number }
-	): ViewDelta | null {
+	): { view: ViewDelta | null; transform: TransformDelta | null } {
 		const ax = a.pointer.x * size.width;
 		const ay = a.pointer.y * size.height;
 		const bx = b.pointer.x * size.width;
 		const by = b.pointer.y * size.height;
-		const next = { span: Math.hypot(ax - bx, ay - by), x: (ax + bx) / 2, y: (ay + by) / 2 };
+		const span = Math.hypot(ax - bx, ay - by);
+		const angle = Math.atan2(by - ay, bx - ax);
+		const x = (ax + bx) / 2;
+		const y = (ay + by) / 2;
 		const prev = zoom;
-		zoom = next;
-		if (!prev) return null;
-		const ratio =
-			prev.span >= c.zoomMinSpan && next.span >= c.zoomMinSpan ? next.span / prev.span : 1;
-		const factor = Math.min(c.zoomMaxStep, Math.max(1 / c.zoomMaxStep, ratio));
-		return { factor, cx: next.x, cy: next.y, dx: next.x - prev.x, dy: next.y - prev.y };
+		if (!prev) {
+			const held = grabbing();
+			zoom = { span, x, y, angle, held, startSpan: Math.max(span, c.zoomMinSpan), turned: 0 };
+			return { view: null, transform: held ? { scale: 1, rotation: 0 } : null };
+		}
+		const settled = prev.span >= c.zoomMinSpan && span >= c.zoomMinSpan;
+		zoom = { ...prev, span, x, y };
+		if (prev.held) {
+			if (span >= c.zoomMinSpan) {
+				zoom.turned += wrap(angle - prev.angle);
+				zoom.angle = angle;
+			}
+			const scale = Math.max(span, c.zoomMinSpan) / prev.startSpan;
+			return { view: null, transform: { scale, rotation: zoom.turned } };
+		}
+		const factor = Math.min(
+			c.zoomMaxStep,
+			Math.max(1 / c.zoomMaxStep, settled ? span / prev.span : 1)
+		);
+		return { view: { factor, cx: x, cy: y, dx: x - prev.x, dy: y - prev.y }, transform: null };
 	}
 
 	return {
@@ -180,9 +224,10 @@ export function createModes({ constants, canClear = () => true }: ModeOptions = 
 			const zooming = bothPinching && !crossing;
 			let cancel = false;
 			let view: ViewDelta | null = null;
+			let transform: TransformDelta | null = null;
 			if (zooming) {
 				cancel = zoom === null;
-				view = pinchZoom(drawing, off, size);
+				({ view, transform } = pinch(drawing, off, size));
 			} else if (zoom) {
 				zoom = null;
 				blocked = !!drawing?.pinching;
@@ -227,6 +272,7 @@ export function createModes({ constants, canClear = () => true }: ModeOptions = 
 				wipe: clearing.fire,
 				clearProgress: clearing.progress,
 				view,
+				transform,
 				cancel,
 				pinching: !!drawing?.pinching && !zooming && !blocked
 			};

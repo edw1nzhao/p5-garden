@@ -97,6 +97,7 @@
 	let gesture: Gesture | null = null;
 	let panning = $state.raw<{ x: number; y: number } | null>(null);
 	let spaceHeld = $state(false);
+	let transforming = $state.raw<{ id: string; scale: number; rotation: number } | null>(null);
 	const WHEEL_ZOOM = 0.008;
 
 	const selection = $derived.by(() => {
@@ -150,6 +151,8 @@
 		(((play.intents.hue ?? 0) / HUE_STEP + 0.5) / MODE_CONSTANTS.hueSteps) * 100
 	);
 	play.canClear = () => scene.elements.length > 0;
+	play.grabbing = () => handDriven && gesture?.mode === 'move';
+	const degrees = (rad: number) => Math.round((((rad * 180) / Math.PI) % 360) + 360) % 360;
 
 	function wipe() {
 		if (clearGarden(scene)) stack = null;
@@ -273,6 +276,7 @@
 		const hands = tracker.hands;
 		untrack(() => {
 			const intents = play.update(hands, performance.now(), stage);
+			applyTransform(intents);
 			if (intents.cancel && handDriven) cancelHandAction();
 			if (intents.wipe) wipe();
 			if (intents.view) {
@@ -300,6 +304,24 @@
 			}
 		});
 	});
+
+	/** Resizes and turns the held plant from its values when the two pinches began. */
+	function applyTransform({ transform }: Intents) {
+		if (!transform) {
+			transforming = null;
+			return;
+		}
+		if (!transforming && gesture?.mode === 'move') {
+			const el = scene.selected;
+			if (el?.id === gesture.id)
+				transforming = { id: el.id, scale: el.scale, rotation: el.rotation };
+		}
+		if (!transforming) return;
+		scene.transform(transforming.id, {
+			scale: transforming.scale * transform.scale,
+			rotation: transforming.rotation + transform.rotation
+		});
+	}
 
 	function onUp() {
 		panning = null;
@@ -456,26 +478,38 @@
 					2}px; height: {selection.sr * 2}px; transform: translate(-50%, -50%) rotate({selection.el
 					.rotation}rad);"
 			></div>
-			<!-- Pointer grips; the stage's keyboard shortcuts cover the same actions. -->
-			<div
-				class="pill"
-				data-testid="handles"
-				aria-hidden="true"
-				style="left: {selection.pillLeft}px; top: {selection.pillTop}px;"
-			>
-				{#each GRIPS as grip (grip.id)}
-					<div
-						class="grip {grip.id}"
-						role="presentation"
-						data-testid="{grip.id}-handle"
-						title={grip.title}
-						onpointerdown={(e) => onGripDown(e, grip.id)}
-					>
-						<grip.icon size={16} strokeWidth={2.25} />
-						<span>{grip.label}</span>
-					</div>
-				{/each}
-			</div>
+			{#if transforming}
+				<div
+					class="pill readout"
+					data-testid="transform-readout"
+					role="status"
+					style="left: {selection.pillLeft}px; top: {selection.pillTop}px;"
+				>
+					<span>{Math.round(selection.el.scale * 100)}%</span>
+					<span>{degrees(selection.el.rotation)}°</span>
+				</div>
+			{:else}
+				<!-- Pointer grips; the stage's keyboard shortcuts cover the same actions. -->
+				<div
+					class="pill"
+					data-testid="handles"
+					aria-hidden="true"
+					style="left: {selection.pillLeft}px; top: {selection.pillTop}px;"
+				>
+					{#each GRIPS as grip (grip.id)}
+						<div
+							class="grip {grip.id}"
+							role="presentation"
+							data-testid="{grip.id}-handle"
+							title={grip.title}
+							onpointerdown={(e) => onGripDown(e, grip.id)}
+						>
+							<grip.icon size={16} strokeWidth={2.25} />
+							<span>{grip.label}</span>
+						</div>
+					{/each}
+				</div>
+			{/if}
 		{/if}
 	</Sketch>
 </div>
@@ -580,6 +614,16 @@
 			0 0 0 1px rgb(165 180 252 / 0.5),
 			0 6px 20px rgb(0 0 0 / 0.45);
 		backdrop-filter: blur(6px);
+	}
+	.readout {
+		gap: 0.75rem;
+		padding: 0 1rem;
+		height: 44px;
+		align-items: center;
+		color: #e2e8f0;
+		font-size: 0.8125rem;
+		font-variant-numeric: tabular-nums;
+		pointer-events: none;
 	}
 	.grip {
 		display: flex;

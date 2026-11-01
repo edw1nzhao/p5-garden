@@ -143,6 +143,21 @@ describe('Scene', () => {
 		expect(scene.elements[0]).toMatchObject({ x: 0.5, y: 0.5 });
 	});
 
+	it('undoes a two-hand resize and turn in one step, even with brief pauses', () => {
+		let now = 0;
+		const scene = new Scene(Math.random, () => now);
+		const id = scene.add('bloom', 0.5, 0.5);
+		now += 5000;
+		const before = { scale: scene.elements[0].scale, rotation: scene.elements[0].rotation };
+		for (let i = 0; i < 90; i++) {
+			now += 33;
+			scene.transform(id, { scale: before.scale * (1 + i / 30), rotation: i * 0.05 });
+		}
+		expect(scene.elements[0].rotation).toBeCloseTo(89 * 0.05);
+		scene.undo();
+		expect(scene.elements[0]).toMatchObject(before);
+	});
+
 	it('drops the redo history when a new change is made', () => {
 		const scene = new Scene();
 		scene.add('bloom', 0.5, 0.5);
