@@ -287,7 +287,11 @@
 
 	<figure class="cam glass" class:on={tracker.status === 'on'}>
 		<video bind:this={video} muted playsinline aria-hidden="true"></video>
-		<figcaption><span class="dot" aria-hidden="true"></span>Camera on</figcaption>
+		<figcaption>
+			<span class="dot" aria-hidden="true"></span>Camera on
+			{#if tracker.labels}<span class="labels">{tracker.labels.join(' · ') || 'no hands'}</span
+				>{/if}
+		</figcaption>
 	</figure>
 
 	{#if drag?.active}
