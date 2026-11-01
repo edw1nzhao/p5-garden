@@ -21,16 +21,26 @@ const MIDDLE_KNUCKLE = 9;
 const PINCH_START = 0.3;
 const PINCH_END = 0.45;
 
-const dist = (a: Landmark, b: Landmark) => Math.hypot(a.x - b.x, a.y - b.y);
+/** Landmark x is a share of frame width and y of height, so x is scaled by width/height first. */
+const dist = (a: Landmark, b: Landmark, aspect: number) =>
+	Math.hypot((a.x - b.x) * aspect, a.y - b.y);
 
-export function readHand(landmarks: readonly Landmark[], wasPinching: boolean): HandState {
+/** Thumb-to-index gap as a share of hand size, the same whichever way the hand faces. */
+export function pinchRatio(landmarks: readonly Landmark[], aspect: number): number {
+	const size = dist(landmarks[WRIST], landmarks[MIDDLE_KNUCKLE], aspect) || 1;
+	return dist(landmarks[THUMB_TIP], landmarks[INDEX_TIP], aspect) / size;
+}
+
+export function readHand(
+	landmarks: readonly Landmark[],
+	wasPinching: boolean,
+	aspect: number
+): HandState {
 	const thumb = landmarks[THUMB_TIP];
 	const index = landmarks[INDEX_TIP];
-	const size = dist(landmarks[WRIST], landmarks[MIDDLE_KNUCKLE]) || 1;
-	const gap = dist(thumb, index) / size;
 	return {
 		pointer: { x: 1 - (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 },
-		pinching: gap < (wasPinching ? PINCH_END : PINCH_START)
+		pinching: pinchRatio(landmarks, aspect) < (wasPinching ? PINCH_END : PINCH_START)
 	};
 }
 

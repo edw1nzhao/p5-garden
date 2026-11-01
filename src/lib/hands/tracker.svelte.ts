@@ -72,7 +72,10 @@ export class HandTracker {
 			this.#lastTime = video.currentTime;
 			const { landmarks } = landmarker.detectForVideo(video, performance.now());
 			this.skeleton = landmarks.map((hand) => hand.map((p) => ({ x: 1 - p.x, y: p.y })));
-			this.hand = landmarks[0] ? readHand(landmarks[0], this.hand?.pinching ?? false) : null;
+			const aspect = video.videoWidth / video.videoHeight || 4 / 3;
+			this.hand = landmarks[0]
+				? readHand(landmarks[0], this.hand?.pinching ?? false, aspect)
+				: null;
 		}
 		this.#frame = requestAnimationFrame(this.#tick);
 	};
