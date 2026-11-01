@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { MIN_ZOOM } from '#lib/garden/view.svelte.js';
 import {
+	WORLD_MAX,
+	WORLD_MIN,
 	elementRadius,
 	hitAll,
 	hitTest,
@@ -127,5 +130,17 @@ describe('mirrorStroke', () => {
 		expect(twice.x).toBeCloseTo(shape.x);
 		expect(twice.path).toEqual(shape.path);
 		expect(shape.path).toEqual([-1, 0, 1, 1]);
+	});
+
+	it('bounds the world to the area visible at minimum zoom around the stage centre', () => {
+		expect(WORLD_MIN).toBeCloseTo(0.5 - 1 / MIN_ZOOM);
+		expect(WORLD_MAX).toBeCloseTo(0.5 + 1 / MIN_ZOOM);
+		expect((WORLD_MIN + WORLD_MAX) / 2).toBe(0.5);
+	});
+
+	it('hits elements that sit outside the stage', () => {
+		const out = at(-0.5, 1.5);
+		expect(hitTest([out], -500, 750, stage)).toBe(out);
+		expect(hitTest([out], 0, 0, stage)).toBeNull();
 	});
 });

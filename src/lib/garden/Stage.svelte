@@ -109,7 +109,11 @@
 		const sr = r * view.zoom;
 		// Leave room for the floating toolbar along the bottom edge.
 		const below = screen.y + sr + PILL_GAP + PILL_HEIGHT <= height - DOCK_CLEARANCE;
-		const pillTop = below ? screen.y + sr + PILL_GAP : screen.y - sr - PILL_GAP - PILL_HEIGHT;
+		const rawTop = below ? screen.y + sr + PILL_GAP : screen.y - sr - PILL_GAP - PILL_HEIGHT;
+		const pillTop = Math.min(
+			Math.max(rawTop, 8),
+			Math.max(8, height - DOCK_CLEARANCE - PILL_HEIGHT)
+		);
 		const pillLeft = Math.min(Math.max(screen.x, 110), Math.max(110, width - 110));
 		return { el, cx, cy, r, sx: screen.x, sy: screen.y, sr, pillTop, pillLeft };
 	});

@@ -14,10 +14,14 @@ export interface Stage {
 }
 
 import { BASE_RADIUS } from '#lib/garden/art.js';
+import { MIN_ZOOM } from '#lib/garden/view.svelte.js';
 
 export { BASE_RADIUS };
 export const MIN_SCALE = 0.3;
 export const MAX_SCALE = 3;
+/** Element positions stay within one minimum-zoom view of the stage centre, in stage fractions. */
+export const WORLD_MIN = 0.5 - 1 / MIN_ZOOM;
+export const WORLD_MAX = 0.5 + 1 / MIN_ZOOM;
 
 export function elementRadius(el: Placed, stage: Stage): number {
 	return BASE_RADIUS * Math.min(stage.width, stage.height) * el.scale;

@@ -1,4 +1,11 @@
-import { MAX_SCALE, MIN_SCALE, type Placed, type StrokeShape } from './geometry.js';
+import {
+	MAX_SCALE,
+	MIN_SCALE,
+	WORLD_MAX,
+	WORLD_MIN,
+	type Placed,
+	type StrokeShape
+} from './geometry.js';
 
 export { MAX_SCALE, MIN_SCALE };
 
@@ -43,6 +50,7 @@ export interface Mood {
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+const inWorld = (v: number) => clamp(v, WORLD_MIN, WORLD_MAX);
 
 interface Snapshot {
 	elements: GardenElement[];
@@ -118,7 +126,7 @@ export class Scene {
 
 	add(kind: ElementKind, x: number, y: number): string {
 		this.#record(null);
-		return this.#push({ kind, x: clamp(x, 0, 1), y: clamp(y, 0, 1), scale: 1 });
+		return this.#push({ kind, x: inWorld(x), y: inWorld(y), scale: 1 });
 	}
 
 	addStroke(brush: Brush, shape: StrokeShape, hue?: number): string {
@@ -135,7 +143,14 @@ export class Scene {
 
 	#pushStroke({ brush, shape, hue }: { brush: Brush; shape: StrokeShape; hue?: number }) {
 		const fields = hue === undefined ? {} : { hue: ((Math.round(hue) % 360) + 360) % 360 };
-		return this.#push({ kind: 'stroke', brush, ...shape, ...fields });
+		return this.#push({
+			kind: 'stroke',
+			brush,
+			...shape,
+			x: inWorld(shape.x),
+			y: inWorld(shape.y),
+			...fields
+		});
 	}
 
 	/** Removes every element as one undo step; false when the garden was already empty. */
@@ -171,8 +186,8 @@ export class Scene {
 		const el = this.#get(id);
 		if (!el) return;
 		this.#record(`move:${id}`);
-		el.x = clamp(x, 0, 1);
-		el.y = clamp(y, 0, 1);
+		el.x = inWorld(x);
+		el.y = inWorld(y);
 	}
 
 	transform(id: string, change: { scale?: number; rotation?: number }) {
