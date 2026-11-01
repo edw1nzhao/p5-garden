@@ -1,7 +1,7 @@
 import type { HandLandmarker } from '@mediapipe/tasks-vision';
-import type { HandState } from './gesture.js';
+import { settings } from '../settings.svelte.js';
 import { serializeClip, toRawFrame, type RawFrame } from './frames.js';
-import { createPipeline, type Pipeline } from './pipeline.js';
+import { createPipeline, NO_HANDS, type HandsState, type Pipeline } from './pipeline.js';
 import { createWithFallback, FrameStats, type Delegate } from './timing.js';
 
 const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm';
@@ -14,8 +14,10 @@ type Status = 'off' | 'loading' | 'on' | 'error';
 export class HandTracker {
 	status = $state<Status>('off');
 	message = $state('');
-	/** The first hand seen, as a pointer and pinch state. */
-	hand = $state<HandState | null>(null);
+	/** Both tracked hands by role: pointer, pinch, debounced shape, wrist and openness. */
+	hands = $state.raw<HandsState>(NO_HANDS);
+	/** The drawing hand, for code that only needs a pointer and a pinch. */
+	hand = $derived(this.hands.drawing);
 	/** Every tracked hand's 21 points, mirrored, as fractions of the canvas. */
 	skeleton = $state.raw<{ x: number; y: number }[][]>([]);
 	/** MediaPipe's label and score for each hand, shown with ?debug-hands. */
@@ -32,7 +34,8 @@ export class HandTracker {
 	#delegate: Delegate = 'GPU';
 	#frameStats = new FrameStats();
 	#statsShownAt = 0;
-	#pipeline: Pipeline = createPipeline();
+	#pipeline: Pipeline = createPipeline({ drawingHand: settings.drawingHand });
+	#pipelineHand = settings.drawingHand;
 	/** Frames kept for download when the page is opened with ?record-hands. */
 	#recording: RawFrame[] | null = null;
 
@@ -62,7 +65,7 @@ export class HandTracker {
 			this.#delegate = delegate;
 			this.#frameStats = new FrameStats();
 			this.#lastTime = -1;
-			this.#pipeline = createPipeline();
+			this.#rebuildPipeline();
 			const params = new URLSearchParams(location.search);
 			this.#recording = params.has('record-hands') ? [] : null;
 			this.labels = params.has('debug-hands') ? [] : null;
@@ -89,9 +92,14 @@ export class HandTracker {
 		this.#recording = null;
 		this.labels = null;
 		this.stats = '';
-		this.hand = null;
+		this.hands = NO_HANDS;
 		this.skeleton = [];
 		this.status = 'off';
+	}
+
+	#rebuildPipeline() {
+		this.#pipelineHand = settings.drawingHand;
+		this.#pipeline = createPipeline({ drawingHand: this.#pipelineHand });
 	}
 
 	#schedule() {
@@ -132,7 +140,8 @@ export class HandTracker {
 		const frame = toRawFrame(result, aspect, time);
 		this.#recording?.push(frame);
 		this.skeleton = frame.hands.map((h) => h.landmarks.map((p) => ({ x: 1 - p.x, y: p.y })));
-		this.hand = this.#pipeline(frame);
+		if (settings.drawingHand !== this.#pipelineHand) this.#rebuildPipeline();
+		this.hands = this.#pipeline(frame);
 		if (this.labels) {
 			this.labels = frame.hands.map((h) => `${h.label} ${h.score.toFixed(2)}`);
 			this.#showStats(started);

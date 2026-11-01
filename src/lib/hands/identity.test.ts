@@ -108,7 +108,7 @@ describe('pipeline while hands cross', () => {
 				const pose: Pose = pinchFirst || i >= 3 ? 'pinch' : 'open';
 				const hands =
 					i < 2 ? [at(0.3, 0.7, pose)] : [at(0.3, 0.7, pose), at(0.36, 0.7, 'open', 'Left')];
-				states.push(pipeline(frame(i, hands))?.pinching);
+				states.push(pipeline(frame(i, hands)).drawing?.pinching);
 			}
 			return states;
 		};
@@ -135,7 +135,7 @@ describe('pipeline smoothing', () => {
 		})();
 		const ratios = Array.from({ length: 150 }, () => 0.37 + 0.06 * noise());
 		const smooth = createPipeline();
-		const filtered = ratios.map((r, i) => smooth(frame(i, [ratioHand(r)]))?.pinching);
+		const filtered = ratios.map((r, i) => smooth(frame(i, [ratioHand(r)])).drawing?.pinching);
 		let wasPinching = false;
 		const raw = ratios.map((r) => {
 			wasPinching = r < (wasPinching ? 0.45 : 0.3);
@@ -149,7 +149,7 @@ describe('pipeline smoothing', () => {
 		const pipeline = createPipeline();
 		const states = Array.from(
 			{ length: 10 },
-			(_, i) => pipeline(frame(i, [ratioHand(i < 5 ? 1 : 0.05)]))?.pinching
+			(_, i) => pipeline(frame(i, [ratioHand(i < 5 ? 1 : 0.05)])).drawing?.pinching
 		);
 		expect(states.indexOf(true)).toBeGreaterThanOrEqual(5);
 		expect(states.indexOf(true)).toBeLessThanOrEqual(7);
