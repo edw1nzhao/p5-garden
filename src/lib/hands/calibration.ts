@@ -21,8 +21,9 @@ const LENGTH = 5;
 
 export const featureVector = ({ fingers, thumb }: Measures): number[] => [...fingers, thumb];
 
-const distance = (a: readonly number[], b: readonly number[]) =>
+export const templateDistance = (a: readonly number[], b: readonly number[]) =>
 	Math.hypot(...a.map((v, i) => v - b[i]));
+const distance = templateDistance;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 /** Collects frames of one held shape and averages them into its template. */

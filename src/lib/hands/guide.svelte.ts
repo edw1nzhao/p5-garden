@@ -1,6 +1,11 @@
 import { settings } from '../settings.svelte.js';
-import type { CalibratedShape } from './calibration.js';
-import { Guide, type GuideInput, type GuideState, type Step } from './onboarding.js';
+import {
+	Guide,
+	type GuideEffect,
+	type GuideInput,
+	type GuideState,
+	type Step
+} from './onboarding.js';
 
 /** The first-use hands guide: whether it is showing and where it has got to. */
 class GuideSession {
@@ -15,9 +20,11 @@ class GuideSession {
 	}
 
 	feed(input: GuideInput) {
-		if (!this.open) return;
-		for (const effect of this.#guide.feed(input)) settings.labelsInverted = effect.value;
-		this.state = this.#guide.state;
+		if (this.open) this.#apply(this.#guide.feed(input));
+	}
+
+	tick(time: number) {
+		if (this.open) this.#apply(this.#guide.tick(time));
 	}
 
 	next() {
@@ -25,16 +32,22 @@ class GuideSession {
 		this.state = this.#guide.state;
 	}
 
-	retry(shape: CalibratedShape) {
-		this.#guide.retry(shape);
+	redoPrevious() {
+		this.#guide.redoPrevious();
 		this.state = this.#guide.state;
 	}
 
-	/** Keeps the calibration when all six shapes were held, then moves to the last step. */
-	finishCalibration() {
-		const { templates } = this.#guide.state.calibrate;
-		if (templates) settings.calibration = templates;
-		this.next();
+	hold(active: boolean) {
+		this.#guide.hold(active);
+	}
+
+	#apply(effects: GuideEffect[]) {
+		for (const effect of effects) {
+			if (effect.type === 'labelsInverted') settings.labelsInverted = effect.value;
+			else if (effect.type === 'calibrated') settings.calibration = effect.templates;
+			else this.close();
+		}
+		this.state = this.#guide.state;
 	}
 
 	/** Closes the card; `seen` marks the guide as shown so it does not open on its own again. */
