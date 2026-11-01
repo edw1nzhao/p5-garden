@@ -12,6 +12,8 @@
 	import { guide } from '#lib/hands/guide.svelte.js';
 	import { settings } from '#lib/settings.svelte.js';
 	import { tracker } from '#lib/hands/tracker.svelte.js';
+	import { handRail } from '#lib/hands/rail.svelte.js';
+	import { prefersReducedMotion } from 'svelte/motion';
 	import { onMount, untrack } from 'svelte';
 	import {
 		Brush as BrushIcon,
@@ -24,6 +26,7 @@
 		MousePointer2,
 		SlidersHorizontal,
 		Sparkles,
+		Sprout,
 		Spline
 	} from '@lucide/svelte';
 	import { thumbnails } from '#lib/garden/thumbnails.svelte.js';
@@ -151,6 +154,7 @@
 		const editing =
 			t instanceof HTMLElement &&
 			(t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName));
+		if (e.key === 'Escape' && handRail.latched) handRail.clearLatch();
 		if (e.key === '0' && !e.metaKey && !e.ctrlKey && !e.altKey && !editing) {
 			view.reset();
 			return;
@@ -163,17 +167,68 @@
 		e.preventDefault();
 	}
 
+	function plantAtCentre(kind: ElementKind) {
+		if (!stageEl) return;
+		const { width, height } = stageEl.getBoundingClientRect();
+		const at = view.toWorld({ x: width / 2, y: height / 2 });
+		scene.add(kind, at.x / width, at.y / height);
+		stageEl.focus();
+	}
+
 	function onSeedClick(kind: ElementKind) {
 		if (suppressClick) {
 			suppressClick = false;
 			return;
 		}
-		if (!stageEl) return;
-		const { width, height } = stageEl.getBoundingClientRect();
-		const at = view.toWorld({ x: width / 2, y: height / 2 });
-		scene.add(kind, at.x / width, at.y / height);
-		stageEl?.focus();
+		plantAtCentre(kind);
 	}
+
+	let railEl = $state<HTMLElement>();
+	function measureRail() {
+		if (!railEl) return;
+		const box = ({ left, top, right, bottom }: DOMRect) => ({ left, top, right, bottom });
+		handRail.layout = {
+			rail: box(railEl.getBoundingClientRect()),
+			tiles: [...railEl.querySelectorAll<HTMLElement>('[data-kind]')].map((el) => ({
+				id: el.dataset.kind!,
+				...box(el.getBoundingClientRect())
+			}))
+		};
+	}
+	$effect(() => {
+		if (!railEl) return;
+		void [tuneOpen, tracker.status];
+		measureRail();
+		const observer = new ResizeObserver(measureRail);
+		observer.observe(railEl);
+		railEl.addEventListener('scroll', measureRail);
+		window.addEventListener('resize', measureRail);
+		return () => {
+			observer.disconnect();
+			railEl?.removeEventListener('scroll', measureRail);
+			window.removeEventListener('resize', measureRail);
+		};
+	});
+
+	const latchedLabel = $derived(
+		handRail.latched ? KINDS[handRail.latched as ElementKind].label : null
+	);
+	let announcement = $state('');
+	let announced: string | null = null;
+	$effect(() => {
+		const label = latchedLabel;
+		if (label === announced) return;
+		announced = label;
+		announcement = label
+			? `${label} latched. Pinch an empty spot on the canvas to plant it. Escape clears.`
+			: 'Seed latch cleared.';
+	});
+	$effect(() => {
+		if (tracker.status !== 'on') untrack(() => handRail.reset());
+	});
+
+	const ringProgress = (p: number) => (prefersReducedMotion.current ? Math.floor(p * 4) / 4 : p);
+	const RING = 2 * Math.PI * 16;
 </script>
 
 <svelte:head>
@@ -188,7 +243,7 @@
 
 <div class="app" class:dragging={drag?.active} class:tune-open={tuneOpen}>
 	<main>
-		<Stage {scene} {view} {tool} {brush} bind:element={stageEl} bind:stack>
+		<Stage {scene} {view} {tool} {brush} bind:element={stageEl} bind:stack onplant={plantAtCentre}>
 			{#snippet actions()}
 				<button
 					type="button"
@@ -214,13 +269,15 @@
 		</nav>
 	</header>
 
-	<aside class="rail glass" aria-label="Seeds">
+	<aside class="rail glass" aria-label="Seeds" bind:this={railEl}>
 		<ul class="seeds">
 			{#each KIND_ORDER as kind (kind)}
 				<li>
 					<button
 						type="button"
 						class="tile seed"
+						class:hand-hover={handRail.hover?.id === kind}
+						class:latched={handRail.latched === kind}
 						data-kind={kind}
 						title="Drag onto the canvas, or click to plant in the centre"
 						onpointerdown={(e) => onSeedDown(e, kind)}
@@ -239,6 +296,26 @@
 							<span class="icon" aria-hidden="true"></span>
 						{/if}
 						<span>{KINDS[kind].label}</span>
+						{#if handRail.hover?.id === kind}
+							<span class="dwell" aria-hidden="true" data-testid="dwell-ring">
+								<svg viewBox="0 0 40 40" width="28" height="28">
+									<circle class="track" cx="20" cy="20" r="16" />
+									<circle
+										class="fill"
+										cx="20"
+										cy="20"
+										r="16"
+										stroke-dasharray={RING}
+										stroke-dashoffset={RING * (1 - ringProgress(handRail.hover.progress))}
+										transform="rotate(-90 20 20)"
+									/>
+								</svg>
+								{#if prefersReducedMotion.current}
+									<span class="pct">{Math.round(ringProgress(handRail.hover.progress) * 100)}%</span
+									>
+								{/if}
+							</span>
+						{/if}
 					</button>
 				</li>
 			{/each}
@@ -247,6 +324,13 @@
 
 	<div class="dock">
 		<p class="hint" aria-live="polite">{hint}</p>
+		<p class="sr-only" role="status" aria-live="polite">{announcement}</p>
+		{#if latchedLabel && tracker.status === 'on'}
+			<p class="chip glass" data-testid="latch-chip">
+				<Sprout size={14} aria-hidden="true" />
+				{latchedLabel} ready · pinch empty canvas to plant · Esc clears
+			</p>
+		{/if}
 		<div class="toolbar glass" role="toolbar" aria-label="Tools">
 			{#each TOOLS as t (t.id)}
 				<button
@@ -456,8 +540,61 @@
 		touch-action: none;
 		transition: background 120ms;
 	}
-	.tile:hover {
+	.tile {
+		position: relative;
+	}
+	.tile:hover,
+	.tile.hand-hover {
 		background: var(--surface-hover);
+	}
+	.tile.hand-hover {
+		border-color: var(--accent-soft);
+	}
+	.tile.latched {
+		border-color: var(--accent-soft);
+		background: var(--accent-strong);
+	}
+	.dwell {
+		position: absolute;
+		top: var(--space);
+		right: var(--space);
+		display: grid;
+		place-items: center;
+		pointer-events: none;
+	}
+	.dwell circle {
+		fill: none;
+		stroke-width: 4;
+	}
+	.dwell .track {
+		stroke: var(--glass-border);
+	}
+	.dwell .fill {
+		stroke: var(--accent-soft);
+		stroke-linecap: round;
+	}
+	.pct {
+		position: absolute;
+		font-size: var(--text-xs);
+		font-variant-numeric: tabular-nums;
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+	.chip {
+		display: flex;
+		align-items: center;
+		gap: var(--space);
+		margin: 0;
+		padding: var(--space) calc(var(--space) * 3);
+		border-radius: var(--radius-pill);
+		font-size: var(--text-xs);
 	}
 	.icon {
 		width: 40px;

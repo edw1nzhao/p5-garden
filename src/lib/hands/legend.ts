@@ -33,3 +33,9 @@ export const CLEAR_ENTRY = {
 	effect: 'Hold still to clear the garden',
 	hue: 0
 };
+
+export const RAIL_ENTRY = {
+	gesture: 'Point and hold a seed, or pinch it',
+	effect: 'Drawing hand plants it. Off hand latches it: pinch empty canvas to plant, Esc clears',
+	hue: 100
+};
