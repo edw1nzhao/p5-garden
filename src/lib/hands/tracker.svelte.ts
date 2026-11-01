@@ -17,6 +17,8 @@ export class HandTracker {
 	hand = $state<HandState | null>(null);
 	/** Every tracked hand's 21 points, mirrored, as fractions of the canvas. */
 	skeleton = $state.raw<{ x: number; y: number }[][]>([]);
+	/** MediaPipe's label and score for each hand, shown with ?debug-hands. */
+	labels = $state.raw<string[] | null>(null);
 
 	#video: HTMLVideoElement | null = null;
 	#stream: MediaStream | null = null;
@@ -48,7 +50,9 @@ export class HandTracker {
 			});
 			if (!this.#stream) return;
 			this.#pipeline = createPipeline();
-			this.#recording = new URLSearchParams(location.search).has('record-hands') ? [] : null;
+			const params = new URLSearchParams(location.search);
+			this.#recording = params.has('record-hands') ? [] : null;
+			this.labels = params.has('debug-hands') ? [] : null;
 			this.status = 'on';
 			this.#frame = requestAnimationFrame(this.#tick);
 		} catch (error) {
@@ -68,6 +72,7 @@ export class HandTracker {
 		this.#lastTime = -1;
 		if (this.#recording?.length) download(serializeClip(this.#recording));
 		this.#recording = null;
+		this.labels = null;
 		this.hand = null;
 		this.skeleton = [];
 		this.status = 'off';
@@ -85,6 +90,7 @@ export class HandTracker {
 			this.#recording?.push(frame);
 			this.skeleton = frame.hands.map((h) => h.landmarks.map((p) => ({ x: 1 - p.x, y: p.y })));
 			this.hand = this.#pipeline(frame);
+			if (this.labels) this.labels = frame.hands.map((h) => `${h.label} ${h.score.toFixed(2)}`);
 		}
 		this.#frame = requestAnimationFrame(this.#tick);
 	};
