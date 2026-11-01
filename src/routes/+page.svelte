@@ -571,11 +571,15 @@
 	}
 	.cam figcaption {
 		display: flex;
+		flex-wrap: wrap;
 		align-items: center;
 		gap: calc(var(--space) * 1.5);
 		padding: 0 var(--space);
 		font-size: var(--text-xs);
 		color: var(--fg-muted);
+	}
+	.cam figcaption .labels {
+		flex-basis: 100%;
 	}
 	.dot {
 		width: 8px;

@@ -160,8 +160,9 @@
 <style>
 	.guide {
 		position: absolute;
-		right: calc(var(--space) * 4);
-		bottom: calc(var(--space) * 4);
+		left: 50%;
+		bottom: calc(var(--space) * 28);
+		transform: translateX(-50%);
 		z-index: 3;
 		width: calc(var(--space) * 92);
 		max-width: calc(100vw - var(--space) * 8);
