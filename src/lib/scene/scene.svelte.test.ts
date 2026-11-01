@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { WORLD_MAX, WORLD_MIN } from './geometry.js';
 import { Scene } from './scene.svelte.js';
 
 describe('Scene', () => {
@@ -17,11 +18,29 @@ describe('Scene', () => {
 		});
 	});
 
-	it('keeps moved elements on the stage', () => {
+	it('lets elements sit past the stage edge', () => {
 		const scene = new Scene();
-		const id = scene.add('ribbon', 0.5, 0.5);
-		scene.move(id, 1.4, -0.2);
-		expect(scene.elements[0]).toMatchObject({ x: 1, y: 0 });
+		const id = scene.add('ribbon', -0.8, 1.7);
+		expect(scene.elements[0]).toMatchObject({ x: -0.8, y: 1.7 });
+		scene.move(id, 2.2, -1.2);
+		expect(scene.elements[0]).toMatchObject({ x: 2.2, y: -1.2 });
+	});
+
+	it('stops elements at the world bound', () => {
+		const scene = new Scene();
+		const id = scene.add('ribbon', 99, -99);
+		expect(scene.elements[0]).toMatchObject({ x: WORLD_MAX, y: WORLD_MIN });
+		scene.move(id, -99, 99);
+		expect(scene.elements[0]).toMatchObject({ x: WORLD_MIN, y: WORLD_MAX });
+	});
+
+	it('applies the same bound to painted strokes', () => {
+		const scene = new Scene();
+		const path = [-1, 0, 1, 0];
+		scene.addStroke('vine', { x: -0.9, y: 1.9, scale: 1, path });
+		scene.addStroke('vine', { x: 50, y: -50, scale: 1, path });
+		expect(scene.elements[0]).toMatchObject({ x: -0.9, y: 1.9 });
+		expect(scene.elements[1]).toMatchObject({ x: WORLD_MAX, y: WORLD_MIN });
 	});
 
 	it('clamps scale to a usable range', () => {

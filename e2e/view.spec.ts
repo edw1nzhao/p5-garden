@@ -104,3 +104,70 @@ test('painting while zoomed stores a world-space path', async ({ page }) => {
 	expect(stroke.scale).toBeCloseTo((x1 - x0) / 2 / NOTCH / unit, 1);
 	expect(stroke.path!.length).toBeGreaterThan(6);
 });
+
+async function zoomOutToMinimum(page: Page, x: number, y: number) {
+	await page.mouse.move(x, y);
+	await page.keyboard.down('Control');
+	for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 100);
+	await page.keyboard.up('Control');
+	await expect(zoomReadout(page)).toHaveText('50%');
+}
+
+/** The stage fraction under a screen point when the view is zoomed to 50% about the stage centre. */
+function worldFraction(
+	s: { x: number; y: number; width: number; height: number },
+	sx: number,
+	sy: number
+) {
+	return {
+		x: 0.5 + ((sx - s.x) / s.width - 0.5) * 2,
+		y: 0.5 + ((sy - s.y) / s.height - 0.5) * 2
+	};
+}
+
+test('a seed dropped outside the stage at minimum zoom keeps its place', async ({ page }) => {
+	const s = (await stage(page).boundingBox())!;
+	await zoomOutToMinimum(page, s.x + s.width / 2, s.y + s.height / 2);
+	const drop = { x: s.x + 180, y: s.y + s.height * 0.5 };
+
+	const seed = (await page.getByRole('button', { name: 'Bloom', exact: true }).boundingBox())!;
+	await page.mouse.move(seed.x + seed.width / 2, seed.y + seed.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(drop.x, drop.y, { steps: 8 });
+	await page.mouse.up();
+
+	const want = worldFraction(s, drop.x, drop.y);
+	expect(want.x).toBeLessThan(0);
+	const [bloom] = await savedElements(page);
+	expect(bloom.x).toBeCloseTo(want.x, 2);
+	expect(bloom.y).toBeCloseTo(want.y, 2);
+	const sel = (await page.getByTestId('selection').boundingBox())!;
+	expect(sel.x + sel.width / 2).toBeCloseTo(drop.x, 0);
+});
+
+test('a plant can be dragged outside the stage and back', async ({ page }) => {
+	const s = (await stage(page).boundingBox())!;
+	const centre = { x: s.x + s.width / 2, y: s.y + s.height / 2 };
+	await page.getByRole('button', { name: 'Bloom', exact: true }).click();
+	await zoomOutToMinimum(page, centre.x, centre.y);
+	const out = { x: s.x + 180, y: s.y + s.height * 0.5 };
+
+	await page.mouse.move(centre.x, centre.y);
+	await page.mouse.down();
+	await page.mouse.move(out.x, out.y, { steps: 8 });
+	await page.mouse.up();
+	const want = worldFraction(s, out.x, out.y);
+	let [bloom] = await savedElements(page);
+	expect(bloom.x).toBeCloseTo(want.x, 2);
+	expect(bloom.y).toBeCloseTo(want.y, 2);
+	await page.getByRole('button', { name: 'Code', exact: true }).click();
+	await expect.poll(async () => (await stage(page).boundingBox())!.width).toBe(s.width);
+
+	await page.mouse.move(out.x, out.y);
+	await page.mouse.down();
+	await page.mouse.move(centre.x, centre.y, { steps: 8 });
+	await page.mouse.up();
+	[bloom] = await savedElements(page);
+	expect(bloom.x).toBeCloseTo(0.5, 2);
+	expect(bloom.y).toBeCloseTo(0.5, 2);
+});

@@ -268,7 +268,10 @@ export function drawGarden(p, garden, clock) {
 	const lean = (clock.lean ??= new Map());
 	const mx = clock.pointer ? clock.pointer.x : p.mouseX;
 	const my = clock.pointer ? clock.pointer.y : p.mouseY;
-	const pointerIn = mx >= 0 && my >= 0 && mx <= width && my <= height;
+	const zoom = clock.view ? clock.view.zoom : 1;
+	const sx = clock.view ? mx * zoom + clock.view.x : mx;
+	const sy = clock.view ? my * zoom + clock.view.y : my;
+	const pointerIn = sx >= 0 && sy >= 0 && sx <= width && sy <= height;
 	const unit = BASE_RADIUS * Math.min(width, height);
 	p.push();
 	if (clock.view) {
