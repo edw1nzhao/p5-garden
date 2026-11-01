@@ -2,6 +2,7 @@
 	import { Scene, type Brush, type ElementKind } from '#lib/scene/scene.svelte.js';
 	import { KINDS, KIND_ORDER } from '#lib/garden/kinds.js';
 	import Stage from '#lib/garden/Stage.svelte';
+	import { View } from '#lib/garden/view.svelte.js';
 	import Panel from '#lib/garden/Panel.svelte';
 	import CodePanel from '#lib/garden/CodePanel.svelte';
 	import { tracker } from '#lib/hands/tracker.svelte.js';
@@ -21,6 +22,7 @@
 	import { thumbnails } from '#lib/garden/thumbnails.svelte.js';
 
 	const scene = new Scene();
+	const view = new View();
 	let tool = $state<'arrange' | 'paint'>('arrange');
 	let brush = $state<Brush>('vine');
 	let tuneOpen = $state(false);
@@ -107,12 +109,21 @@
 			e.clientY >= rect.top &&
 			e.clientY <= rect.bottom;
 		if (inside) {
-			scene.add(kind, (e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height);
+			const at = view.toWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+			scene.add(kind, at.x / rect.width, at.y / rect.height);
 			stageEl.focus();
 		}
 	}
 
 	function onHistoryKey(e: KeyboardEvent) {
+		const t = e.target;
+		const editing =
+			t instanceof HTMLElement &&
+			(t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName));
+		if (e.key === '0' && !e.metaKey && !e.ctrlKey && !e.altKey && !editing) {
+			view.reset();
+			return;
+		}
 		if (!(e.metaKey || e.ctrlKey)) return;
 		const key = e.key.toLowerCase();
 		if (key === 'z' && !e.shiftKey) scene.undo();
@@ -126,7 +137,10 @@
 			suppressClick = false;
 			return;
 		}
-		scene.add(kind, 0.5, 0.5);
+		if (!stageEl) return;
+		const { width, height } = stageEl.getBoundingClientRect();
+		const at = view.toWorld({ x: width / 2, y: height / 2 });
+		scene.add(kind, at.x / width, at.y / height);
 		stageEl?.focus();
 	}
 </script>
@@ -143,7 +157,7 @@
 
 <div class="app" class:dragging={drag?.active} class:tune-open={tuneOpen}>
 	<main>
-		<Stage {scene} {tool} {brush} bind:element={stageEl} bind:stack>
+		<Stage {scene} {view} {tool} {brush} bind:element={stageEl} bind:stack>
 			{#snippet actions()}
 				<button
 					type="button"
@@ -260,6 +274,16 @@
 				onclick={() => scene.redo()}
 			>
 				<Redo2 size={18} aria-hidden="true" />
+			</button>
+			<span class="sep" role="presentation"></span>
+			<button
+				type="button"
+				class="tool zoom"
+				title="Reset the view (0)"
+				disabled={view.zoom === 1 && view.x === 0 && view.y === 0}
+				onclick={() => view.reset()}
+			>
+				{Math.round(view.zoom * 100)}%
 			</button>
 			<span class="sep tune-only" role="presentation"></span>
 			<button
@@ -436,6 +460,11 @@
 	.tool:disabled {
 		opacity: 0.35;
 		cursor: default;
+	}
+	.zoom {
+		min-width: calc(var(--space) * 16);
+		justify-content: center;
+		font-variant-numeric: tabular-nums;
 	}
 	.icon-only {
 		padding: 0 calc(var(--space) * 3);

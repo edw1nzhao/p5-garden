@@ -3,14 +3,16 @@ import type { Scene } from '#lib/scene/scene.svelte.js';
 import { drawGarden } from './art.js';
 import { renderThumbnails } from './thumbnails.svelte.js';
 import { HAND_BONES } from '#lib/hands/gesture.js';
+import type { View } from './view.svelte.js';
 import { tracker } from '#lib/hands/tracker.svelte.js';
 
-export function gardenSketch(scene: Scene) {
+export function gardenSketch(scene: Scene, view: View) {
 	const clock: {
 		sway: number;
 		times: Map<string, number>;
 		lean: Map<string, number>;
 		pointer?: { x: number; y: number };
+		view?: { zoom: number; x: number; y: number };
 	} = { sway: 0, times: new Map(), lean: new Map() };
 	return (p: p5) => {
 		p.setup = () => {
@@ -20,18 +22,25 @@ export function gardenSketch(scene: Scene) {
 		};
 		p.draw = () => {
 			const hand = tracker.hand;
-			clock.pointer = hand
-				? { x: hand.pointer.x * p.width, y: hand.pointer.y * p.height }
-				: undefined;
+			clock.view = { zoom: view.zoom, x: view.x, y: view.y };
+			clock.pointer = view.toWorld(
+				hand
+					? { x: hand.pointer.x * p.width, y: hand.pointer.y * p.height }
+					: { x: p.mouseX, y: p.mouseY }
+			);
 			drawGarden(p, scene, clock);
 			drawHands(p);
 			if (scene.draft && scene.draft.length > 1) {
+				p.push();
+				p.translate(view.x, view.y);
+				p.scale(view.zoom);
 				p.noFill();
 				p.stroke(0, 0, 100, 0.6);
 				p.strokeWeight(2);
 				p.beginShape();
 				for (const pt of scene.draft) p.vertex(pt.x * p.width, pt.y * p.height);
 				p.endShape();
+				p.pop();
 			}
 			if (clock.times.size > scene.elements.length) {
 				const live = new Set(scene.elements.map((e) => e.id));

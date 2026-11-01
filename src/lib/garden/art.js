@@ -249,7 +249,7 @@ export const BACKDROPS = {
  * element's own time and the shared sway time, so speed changes never jump.
  * @param {P5} p @param {Garden} garden
  * @param {{ sway: number, times: Map<string, number>, lean?: Map<string, number>,
- *   pointer?: { x: number, y: number } }} clock
+ *   pointer?: { x: number, y: number }, view?: { zoom: number, x: number, y: number } }} clock
  */
 export function drawGarden(p, garden, clock) {
 	const width = p.width;
@@ -269,6 +269,11 @@ export function drawGarden(p, garden, clock) {
 	const my = clock.pointer ? clock.pointer.y : p.mouseY;
 	const pointerIn = mx >= 0 && my >= 0 && mx <= width && my <= height;
 	const unit = BASE_RADIUS * Math.min(width, height);
+	p.push();
+	if (clock.view) {
+		p.translate(clock.view.x, clock.view.y);
+		p.scale(clock.view.zoom);
+	}
 	for (const el of garden.elements) {
 		const t = (clock.times.get(el.id) ?? 0) + dt * el.speed;
 		clock.times.set(el.id, t);
@@ -289,5 +294,6 @@ export function drawGarden(p, garden, clock) {
 		DRAW[el.kind](p, el, r, t);
 		p.pop();
 	}
+	p.pop();
 	p.blendMode(p.BLEND);
 }
