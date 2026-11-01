@@ -12,7 +12,8 @@ const POSES: [Pose, Shape][] = [
 	['three', 'three'],
 	['open', 'open'],
 	['L', 'L'],
-	['pinch', 'pinch']
+	['pinch', 'pinch'],
+	['grip', 'pinch']
 ];
 
 /** What the pipeline hands the classifier: the landmarks and the pinch ratio's verdict. */

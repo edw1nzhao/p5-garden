@@ -1,7 +1,7 @@
 import type { Landmark } from './gesture.js';
 import type { Handedness, RawHand } from './frames.js';
 
-export type Pose = 'open' | 'point' | 'one' | 'two' | 'three' | 'fist' | 'pinch' | 'L';
+export type Pose = 'open' | 'point' | 'one' | 'two' | 'three' | 'fist' | 'pinch' | 'grip' | 'L';
 
 export interface HandOptions {
 	label?: Handedness;
@@ -50,7 +50,7 @@ function thumb(pose: Pose, indexTip: Point): Point[] {
 	const tip: Point =
 		pose === 'open'
 			? [-0.75, -0.75, 0]
-			: pose === 'pinch'
+			: pose === 'pinch' || pose === 'grip'
 				? [indexTip[0] - 0.04, indexTip[1] + 0.02, indexTip[2]]
 				: pose === 'L'
 					? [-1.0, -0.55, 0]
@@ -68,7 +68,8 @@ function localHand(pose: Pose): Point[] {
 		three: [0, 0, 0, 1],
 		L: [0, 1, 1, 1],
 		fist: [1, 1, 1, 1],
-		pinch: [0.45, 0.2, 0.2, 0.2]
+		pinch: [0.45, 0.2, 0.2, 0.2],
+		grip: [0.45, 1, 1, 1]
 	};
 	const fingers = KNUCKLES.map((k, i) => [k, ...finger(k, BONES[i], curls[pose][i])]);
 	return [[0, 0, 0], ...thumb(pose, fingers[0][3]), ...fingers.flat()];

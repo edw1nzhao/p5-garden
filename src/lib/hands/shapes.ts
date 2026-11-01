@@ -12,7 +12,7 @@ const EXTEND_EXIT = 1.0;
 // Thumb tip to index knuckle over hand size; separate thresholds stop flicker.
 const THUMB_ENTER = 0.7;
 const THUMB_EXIT = 0.55;
-// Middle, ring and pinky all below this are a closed fist, never a pinch.
+// An index tucked below this is a fist; in a pinch it reaches out to the thumb.
 const FIST_TIGHT = 0.85;
 // Mean finger extension mapped onto 0 (curled) to 1 (straight).
 const OPEN_MIN = 0.7;
@@ -70,7 +70,7 @@ export class ShapeClassifier {
 		const m = measure(landmarks, aspect);
 		this.#extended = m.fingers.map((f, i) => f > (this.#extended[i] ? EXTEND_EXIT : EXTEND_ENTER));
 		this.#thumbOut = m.thumb > (this.#thumbOut ? THUMB_EXIT : THUMB_ENTER);
-		const closedFist = !this.#extended[0] && m.fingers.slice(1).every((f) => f < FIST_TIGHT);
+		const closedFist = m.fingers[0] < FIST_TIGHT;
 		if (pinching && !closedFist) return { shape: 'pinch', pinching: true };
 		return { shape: shapeOf(this.#extended, this.#thumbOut), pinching: false };
 	}
