@@ -4,6 +4,8 @@ import { drawGarden } from './art.js';
 import { renderThumbnails } from './thumbnails.svelte.js';
 import { HAND_BONES } from '#lib/hands/gesture.js';
 import type { View } from './view.svelte.js';
+import { MODE_HUE } from '#lib/hands/legend.js';
+import { play } from '#lib/hands/play.svelte.js';
 import { tracker } from '#lib/hands/tracker.svelte.js';
 
 export function gardenSketch(scene: Scene, view: View) {
@@ -13,6 +15,7 @@ export function gardenSketch(scene: Scene, view: View) {
 		lean: Map<string, number>;
 		pointer?: { x: number; y: number };
 		view?: { zoom: number; x: number; y: number };
+		gust?: number;
 	} = { sway: 0, times: new Map(), lean: new Map() };
 	return (p: p5) => {
 		p.setup = () => {
@@ -22,6 +25,7 @@ export function gardenSketch(scene: Scene, view: View) {
 		};
 		p.draw = () => {
 			const hand = tracker.hand;
+			clock.gust = play.gust(performance.now());
 			clock.view = { zoom: view.zoom, x: view.x, y: view.y };
 			clock.pointer = view.toWorld(
 				hand
@@ -37,9 +41,8 @@ export function gardenSketch(scene: Scene, view: View) {
 				p.noFill();
 				p.stroke(0, 0, 100, 0.6);
 				p.strokeWeight(2);
-				p.beginShape();
-				for (const pt of scene.draft) p.vertex(pt.x * p.width, pt.y * p.height);
-				p.endShape();
+				drawDraft(p, scene.draft, false);
+				if (scene.draftMirror) drawDraft(p, scene.draft, true);
 				p.pop();
 			}
 			if (clock.times.size > scene.elements.length) {
@@ -48,6 +51,12 @@ export function gardenSketch(scene: Scene, view: View) {
 			}
 		};
 	};
+}
+
+function drawDraft(p: p5, draft: { x: number; y: number }[], mirror: boolean) {
+	p.beginShape();
+	for (const pt of draft) p.vertex((mirror ? 1 - pt.x : pt.x) * p.width, pt.y * p.height);
+	p.endShape();
 }
 
 /** Draws each tracked hand's skeleton, and its pinch point filled while pinching. */
@@ -89,13 +98,18 @@ function drawBadges(p: p5) {
 	for (const role of ['drawing', 'off'] as const) {
 		const reading = tracker.hands[role];
 		if (!reading) continue;
-		const label = `${ROLE_LABEL[role]} · ${reading.shape}`;
+		const mode = play.intents.mode;
+		const tint = MODE_HUE[mode];
+		const showsMode = role === 'off' ? tint !== undefined : mode === 'zoom';
+		const hue = showsMode ? tint! : ROLE_HUE[role];
+		const sure = tracker.labels ? ` ${reading.confidence.toFixed(2)}` : '';
+		const label = `${ROLE_LABEL[role]} · ${reading.shape}${sure}${showsMode && role === 'off' ? ` → ${mode}` : ''}`;
 		const x = Math.min(p.width - 4, Math.max(4, reading.wrist.x * p.width));
 		const y = Math.min(p.height - 14, reading.wrist.y * p.height + 18);
 		const w = p.textWidth(label) + 14;
-		p.stroke(ROLE_HUE[role], 50, 100, 0.9);
+		p.stroke(hue, 50, 100, 0.9);
 		p.strokeWeight(1.5);
-		p.fill(ROLE_HUE[role], 60, 25, 0.78);
+		p.fill(hue, 60, 25, 0.78);
 		p.rect(x - w / 2, y - 10, w, 20, 10);
 		p.noStroke();
 		p.fill(0, 0, 100);

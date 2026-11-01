@@ -103,3 +103,10 @@ test('garden settings stay reachable while a plant is selected', async ({ page }
 	await expect(page.getByRole('button', { name: 'React to pointer' })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Dusk' })).toBeVisible();
 });
+
+test('Recalibrate hands waits for Hands to be on, and the sweep setting is gone', async ({
+	page
+}) => {
+	await expect(page.getByRole('button', { name: 'Recalibrate hands' })).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Sweep to clear' })).toHaveCount(0);
+});

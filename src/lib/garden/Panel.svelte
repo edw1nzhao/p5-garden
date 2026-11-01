@@ -3,6 +3,8 @@
 	import { BACKDROPS, BACKDROP_ORDER } from './backdrops.js';
 	import { KINDS } from './kinds.js';
 	import { onMount } from 'svelte';
+	import { guide } from '#lib/hands/guide.svelte.js';
+	import { tracker } from '#lib/hands/tracker.svelte.js';
 	import { settings, type DrawingHand } from '#lib/settings.svelte.js';
 
 	let { scene }: { scene: Scene } = $props();
@@ -201,6 +203,21 @@
 					</button>
 				{/each}
 			</div>
+		</fieldset>
+
+		<fieldset>
+			<legend>Hand reading</legend>
+			<button
+				type="button"
+				class="toggle"
+				disabled={tracker.status !== 'on'}
+				title={tracker.status === 'on'
+					? 'Teach the camera what your own shapes look like'
+					: 'Turn on Hands first'}
+				onclick={() => guide.start('calibrate')}
+			>
+				Recalibrate hands
+			</button>
 		</fieldset>
 	</div>
 </aside>

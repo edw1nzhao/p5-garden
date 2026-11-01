@@ -3,6 +3,7 @@ import {
 	elementRadius,
 	hitAll,
 	hitTest,
+	mirrorStroke,
 	smoothPath,
 	strokeFromPath,
 	toLocal,
@@ -106,5 +107,25 @@ describe('hitAll', () => {
 			bottom.id
 		]);
 		expect(hitAll([bottom], 50, 50, stage)).toEqual([]);
+	});
+});
+
+describe('mirrorStroke', () => {
+	it('reflects the centre and the path across the middle of the stage', () => {
+		const shape = { x: 0.3, y: 0.6, scale: 1.5, path: [-1, 0.5, 0, 0, 1, -0.5] };
+		expect(mirrorStroke(shape)).toEqual({
+			x: 0.7,
+			y: 0.6,
+			scale: 1.5,
+			path: [1, 0.5, 0, 0, -1, -0.5]
+		});
+	});
+
+	it('is its own inverse and leaves the original alone', () => {
+		const shape = { x: 0.2, y: 0.4, scale: 1, path: [-1, 0, 1, 1] };
+		const twice = mirrorStroke(mirrorStroke(shape));
+		expect(twice.x).toBeCloseTo(shape.x);
+		expect(twice.path).toEqual(shape.path);
+		expect(shape.path).toEqual([-1, 0, 1, 1]);
 	});
 });

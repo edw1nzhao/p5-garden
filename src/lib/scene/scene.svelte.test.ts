@@ -143,4 +143,49 @@ describe('Scene', () => {
 		scene.undo();
 		expect(scene.selectedId).toBeNull();
 	});
+
+	it('gives a painted stroke the hue it was painted with', () => {
+		const scene = new Scene(() => 0.5);
+		scene.addStroke('silk', { x: 0.4, y: 0.6, scale: 1, path: [-1, 0, 1, 0] }, 345);
+		scene.addStroke('silk', { x: 0.4, y: 0.6, scale: 1, path: [-1, 0, 1, 0] });
+		expect(scene.elements.map((e) => e.hue)).toEqual([345, 180]);
+	});
+
+	it('adds several strokes as one undo step', () => {
+		const scene = new Scene();
+		const shape = { x: 0.3, y: 0.5, scale: 1, path: [-1, 0, 1, 0] };
+		scene.add('bloom', 0.5, 0.5);
+		const ids = scene.addStrokes([
+			{ brush: 'vine', shape, hue: 30 },
+			{ brush: 'vine', shape: { ...shape, x: 0.7 }, hue: 30 }
+		]);
+		expect(ids).toHaveLength(2);
+		expect(scene.elements.map((e) => e.x)).toEqual([0.5, 0.3, 0.7]);
+		expect(scene.selectedId).toBe(ids[1]);
+		scene.undo();
+		expect(scene.elements.map((e) => e.kind)).toEqual(['bloom']);
+		expect(scene.addStrokes([])).toEqual([]);
+	});
+
+	it('clears the garden as one undo step and restores it on undo and redo', () => {
+		const scene = new Scene();
+		scene.add('bloom', 0.2, 0.2);
+		scene.add('swarm', 0.4, 0.4);
+		scene.addStroke('vine', { x: 0.5, y: 0.5, scale: 1, path: [-1, 0, 1, 0] });
+		scene.setMood({ wind: 0.5 });
+		expect(scene.clear()).toBe(true);
+		expect(scene.elements).toEqual([]);
+		expect(scene.selected).toBeNull();
+		expect(scene.mood.wind).toBe(0.5);
+		scene.undo();
+		expect(scene.elements.map((e) => e.kind)).toEqual(['bloom', 'swarm', 'stroke']);
+		scene.redo();
+		expect(scene.elements).toEqual([]);
+	});
+
+	it('does nothing, and records nothing, when clearing an empty garden', () => {
+		const scene = new Scene();
+		expect(scene.clear()).toBe(false);
+		expect(scene.canUndo).toBe(false);
+	});
 });

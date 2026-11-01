@@ -1,3 +1,4 @@
+import { classifyByTemplates, type Templates } from './calibration.js';
 import type { Landmark } from './gesture.js';
 
 export type Shape = 'pinch' | 'fist' | 'one' | 'two' | 'three' | 'open' | 'L' | 'none';
@@ -58,21 +59,47 @@ export function openness({ fingers }: Measures): number {
 export interface ShapeRead {
 	shape: Shape;
 	pinching: boolean;
+	/** 0 to 1: how far the measures sit from the nearest decision boundary. */
+	confidence: number;
+}
+
+// Distance from a threshold at which the rules count as fully sure.
+const SURE_FINGER = 0.3;
+const SURE_THUMB = 0.25;
+
+function ruleConfidence(m: Measures, shape: Shape): number {
+	if (shape === 'none') return 0;
+	const fingers = m.fingers.map(
+		(f) => Math.abs(f - (EXTEND_ENTER + EXTEND_EXIT) / 2) / SURE_FINGER
+	);
+	const thumb = Math.abs(m.thumb - (THUMB_ENTER + THUMB_EXIT) / 2) / SURE_THUMB;
+	const margins = shape === 'one' || shape === 'L' ? [...fingers, thumb] : fingers;
+	return Math.min(1, Math.max(0, Math.min(...margins)));
 }
 
 /** Reads one hand's shape frame by frame, keeping each finger's extended state for hysteresis. */
 export class ShapeClassifier {
 	#extended = [false, false, false, false];
 	#thumbOut = false;
+	#pinching = false;
+	#templates: Templates | null;
+
+	/** With `templates` the user's own calibration decides the shape instead of the fixed rules. */
+	constructor(templates: Templates | null = null) {
+		this.#templates = templates;
+	}
 
 	/** `pinching` is the pinch ratio's verdict; a closed fist overrules it. */
 	read(landmarks: readonly Landmark[], aspect: number, pinching: boolean): ShapeRead {
 		const m = measure(landmarks, aspect);
 		this.#extended = m.fingers.map((f, i) => f > (this.#extended[i] ? EXTEND_EXIT : EXTEND_ENTER));
 		this.#thumbOut = m.thumb > (this.#thumbOut ? THUMB_EXIT : THUMB_ENTER);
-		const closedFist = m.fingers[0] < FIST_TIGHT;
-		if (pinching && !closedFist) return { shape: 'pinch', pinching: true };
-		return { shape: shapeOf(this.#extended, this.#thumbOut), pinching: false };
+		// A tucked index stops a fist starting a pinch, but never ends one already held.
+		this.#pinching = pinching && (this.#pinching || m.fingers[0] >= FIST_TIGHT);
+		if (this.#pinching) return { shape: 'pinch', pinching: true, confidence: 1 };
+		if (this.#templates) return { ...classifyByTemplates(m, this.#templates), pinching: false };
+		const shape = shapeOf(this.#extended, this.#thumbOut);
+		return { shape, pinching: false, confidence: ruleConfidence(m, shape) };
 	}
 }
 

@@ -95,7 +95,7 @@ describe('replay', () => {
 		expect(kinds.filter((k) => k === 'down')).toHaveLength(1);
 		expect(kinds.filter((k) => k === 'up')).toHaveLength(1);
 		expect(kinds.indexOf('down')).toBe(10);
-		expect(kinds.indexOf('up')).toBe(22);
+		expect(kinds.indexOf('up')).toBe(25);
 		const down = events[10].pointer!;
 		const up = events[21].pointer!;
 		expect(down.x - up.x).toBeGreaterThan(0.2);

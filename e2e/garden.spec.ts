@@ -149,9 +149,29 @@ test('undo and redo step through changes from the toolbar and the keyboard', asy
 });
 
 test('Hands explains clearly when no camera is available', async ({ page }) => {
-	const hands = page.getByRole('button', { name: 'Hands' });
+	const hands = page.getByRole('button', { name: 'Hands', exact: true });
 	await hands.click();
 	await expect(page.getByText(/camera/i).first()).toBeVisible();
 	await expect(hands).toHaveAttribute('aria-pressed', 'false');
 	await expect(page.locator('figure.cam')).toBeHidden();
+});
+
+test('Clear empties the garden, offers Undo, and is disabled when there is nothing to clear', async ({
+	page
+}) => {
+	const clear = page.getByRole('button', { name: 'Clear', exact: true });
+	const desc = stage(page).locator('canvas [aria-label="Canvas Description"]');
+	await expect(clear).toBeDisabled();
+	await page.getByRole('button', { name: 'Bloom', exact: true }).click();
+	await page.getByRole('button', { name: 'Tree', exact: true }).click();
+	await expect(desc).toContainText('1 bloom, 1 tree');
+	await clear.click();
+	await expect(desc).toContainText('waiting for seeds');
+	await expect(clear).toBeDisabled();
+	const toast = page.getByRole('status').filter({ hasText: 'Garden cleared' });
+	await expect(toast).toBeVisible();
+	await toast.getByRole('button', { name: 'Undo' }).click();
+	await expect(desc).toContainText('1 bloom, 1 tree');
+	await expect(toast).toBeHidden();
+	await expect(clear).toBeEnabled();
 });

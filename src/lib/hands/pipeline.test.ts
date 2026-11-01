@@ -80,3 +80,43 @@ describe('pipeline with both hands', () => {
 		expect(out.drawing!.wrist.x).toBeCloseTo(1 - 0.7, 1);
 	});
 });
+
+describe('pipeline with calibrated templates', () => {
+	it('reads shapes from the user’s templates and exposes confidence and measures', () => {
+		const odd = { fist: [0.7, 0.7, 0.7, 0.7, 0.4], one: [1.4, 0.7, 0.7, 0.7, 0.4] };
+		const templates = Object.fromEntries(
+			['fist', 'one', 'two', 'three', 'L', 'open'].map((s, i) => [
+				s,
+				odd[s as 'fist'] ?? [3 + i, 3, 3, 3, 3]
+			])
+		) as never;
+		const pipeline = createPipeline({ templates });
+		let out = pipeline(frame(0, []));
+		for (let i = 0; i < 8; i++) out = pipeline(frame(i, [at(0.3, 'one', 'Right')]));
+		expect(out.drawing).toMatchObject({ shape: 'one' });
+		expect(out.drawing!.confidence).toBeGreaterThan(0.5);
+		expect(out.drawing!.measures.fingers).toHaveLength(4);
+	});
+});
+
+describe('a held pinch', () => {
+	const run = (poses: Pose[]) => {
+		const pipeline = createPipeline();
+		return poses.map((pose, i) => pipeline(frame(i, [at(0.3, pose, 'Right')])).drawing!.pinching);
+	};
+	const repeat = (pose: Pose, n: number): Pose[] => Array(n).fill(pose);
+
+	it('survives the index curling into the palm mid-stroke', () => {
+		const states = run([...repeat('pinch', 6), ...repeat('fist', 10)]);
+		expect(states.slice(states.indexOf(true))).not.toContain(false);
+	});
+
+	it('survives a one- or two-frame blip of open fingers, but ends on a real release', () => {
+		for (const blip of [1, 2]) {
+			const states = run([...repeat('pinch', 8), ...repeat('open', blip), ...repeat('pinch', 8)]);
+			expect(states.slice(states.indexOf(true)), `${blip}-frame blip`).not.toContain(false);
+		}
+		const released = run([...repeat('pinch', 8), ...repeat('open', 8)]);
+		expect(released.at(-1)).toBe(false);
+	});
+});
