@@ -125,8 +125,11 @@
 			<button type="button" class="danger" onclick={() => scene.remove(el.id)}>Delete</button>
 		</div>
 	{:else}
-		<h2>Garden</h2>
-		<p class="empty">Select a plant to tune it. These settings change the whole garden.</p>
+		<p class="empty">Select a plant to tune its colour, shape and speed.</p>
+	{/if}
+
+	<div class="garden">
+		<h2 class="section-title">Garden</h2>
 
 		<fieldset>
 			<legend>Backdrop</legend>
@@ -178,7 +181,7 @@
 				React to pointer
 			</button>
 		</fieldset>
-	{/if}
+	</div>
 </aside>
 
 <style>
@@ -340,6 +343,15 @@
 	input:focus-visible {
 		outline: 2px solid var(--accent-soft);
 		outline-offset: 2px;
+	}
+	.garden {
+		display: grid;
+		gap: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--glass-border);
+	}
+	.section-title {
+		font-size: var(--text-md);
 	}
 	.empty {
 		margin: 0;

@@ -38,7 +38,7 @@ export interface Mood {
 	wind: number;
 	/** Additive blending, which reads as light on dark backdrops. */
 	glow: boolean;
-	/** Plants swell slightly when the pointer is near. */
+	/** Plants swell slightly when the pointer is near; off unless chosen. */
 	react: boolean;
 }
 
@@ -56,7 +56,7 @@ const HISTORY_LIMIT = 100;
 export class Scene {
 	elements = $state<GardenElement[]>([]);
 	selectedId = $state<string | null>(null);
-	mood = $state<Mood>({ backdrop: 'night', wind: 0, glow: false, react: true });
+	mood = $state<Mood>({ backdrop: 'night', wind: 0, glow: false, react: false });
 	/** The stroke being painted, as stage fractions; null when not painting. */
 	draft = $state<{ x: number; y: number }[] | null>(null);
 	selected = $derived(this.elements.find((e) => e.id === this.selectedId) ?? null);
