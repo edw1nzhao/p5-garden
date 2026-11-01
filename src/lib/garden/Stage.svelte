@@ -3,6 +3,7 @@
 	import { handEvent, type HandState } from '#lib/hands/gesture.js';
 	import { MODE_CONSTANTS, type Intents } from '#lib/hands/modes.js';
 	import { play } from '#lib/hands/play.svelte.js';
+	import { handRail } from '#lib/hands/rail.svelte.js';
 	import { tracker } from '#lib/hands/tracker.svelte.js';
 	import { Sketch } from 'svelte-p5-components';
 	import { ExportButton } from 'svelte-p5-components/export';
@@ -14,7 +15,7 @@
 		smoothPath,
 		strokeFromPath
 	} from '#lib/scene/geometry.js';
-	import type { Brush, Scene } from '#lib/scene/scene.svelte.js';
+	import type { Brush, ElementKind, Scene } from '#lib/scene/scene.svelte.js';
 	import { Maximize2, Move, RotateCw } from '@lucide/svelte';
 	import { BACKDROPS } from './backdrops.js';
 	import { KINDS } from './kinds.js';
@@ -30,6 +31,7 @@
 		tool = 'arrange',
 		brush = 'vine',
 		stack = $bindable(null),
+		onplant,
 		actions
 	}: {
 		scene: Scene;
@@ -39,6 +41,8 @@
 		brush?: Brush;
 		/** Where the selection sits among the plants under the last click, when there are several. */
 		stack?: { index: number; total: number } | null;
+		/** The drawing hand chose a seed on the rail. */
+		onplant?: (kind: ElementKind) => void;
 		/** Extra buttons shown beside Save poster, over the canvas. */
 		actions?: Snippet;
 	} = $props();
@@ -272,10 +276,20 @@
 	// A pinch acts like a press: pinch to grab or start painting, move, open the fingers to let go.
 	let prevHand: HandState | null = null;
 	let handDriven = false;
+	let tap: { x: number; y: number } | null = null;
 	$effect(() => {
 		const hands = tracker.hands;
 		untrack(() => {
-			const intents = play.update(hands, performance.now(), stage);
+			const now = performance.now();
+			const box = element?.getBoundingClientRect();
+			const rail = handRail.update(hands, now, {
+				left: box?.left ?? 0,
+				top: box?.top ?? 0,
+				...stage
+			});
+			for (const pick of rail.selected)
+				if (pick.role === 'drawing') onplant?.(pick.id as ElementKind);
+			const intents = play.update(hands, now, stage);
 			applyTransform(intents);
 			if (intents.cancel && handDriven) cancelHandAction();
 			if (intents.wipe) wipe();
@@ -286,15 +300,21 @@
 			}
 			const next: HandState | null = hands.drawing && {
 				pointer: { ...hands.drawing.pointer },
-				pinching: intents.pinching
+				pinching: intents.pinching && !rail.over.drawing
 			};
 			const event = handEvent(prevHand, next);
 			prevHand = next;
+			if (event === 'up' && tap) {
+				if (next && !rail.over.drawing && handRail.latched)
+					scene.add(handRail.latched as ElementKind, tap.x / width, tap.y / height);
+				tap = null;
+			}
 			if (!event || event === 'hover' || !width) return;
 			const pt = next && view.toWorld({ x: next.pointer.x * width, y: next.pointer.y * height });
 			if (event === 'down' && pt) {
 				handDriven = true;
-				downAt(pt, intents);
+				const grabbed = downAt(pt, intents);
+				tap = !grabbed && tool === 'arrange' && handRail.latched ? pt : null;
 			} else if (event === 'move' && pt) {
 				switchBrush(intents);
 				moveTo(pt);
@@ -371,6 +391,7 @@
 		scene.draftMirror = false;
 		gesture = null;
 		cycle = null;
+		tap = null;
 	}
 
 	function onWheel(e: WheelEvent) {

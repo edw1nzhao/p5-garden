@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { ChevronDown, ChevronUp, CircleQuestionMark } from '@lucide/svelte';
 	import { guide } from './guide.svelte.js';
-	import { CLEAR_ENTRY, LEGEND } from './legend.js';
+	import { CLEAR_ENTRY, LEGEND, RAIL_ENTRY } from './legend.js';
 	import { play } from './play.svelte.js';
+	import { handRail } from './rail.svelte.js';
 
 	let open = $state(false);
 	const active = $derived(LEGEND.find((e) => e.mode === play.intents.mode));
@@ -52,6 +53,11 @@
 				<span class="dot on" style="--hue: {CLEAR_ENTRY.hue}" aria-hidden="true"></span>
 				<span class="gesture">{CLEAR_ENTRY.gesture}</span>
 				<span class="effect">{CLEAR_ENTRY.effect}</span>
+			</li>
+			<li class:active={!!handRail.hover} data-mode="rail">
+				<span class="dot on" style="--hue: {RAIL_ENTRY.hue}" aria-hidden="true"></span>
+				<span class="gesture">{RAIL_ENTRY.gesture}</span>
+				<span class="effect">{RAIL_ENTRY.effect}</span>
 			</li>
 		</ul>
 		<p class="foot">Hold a shape with your off hand, pinch with the other to paint.</p>

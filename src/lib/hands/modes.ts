@@ -25,7 +25,9 @@ export const MODE_CONSTANTS = {
 	/** Largest zoom factor accepted in one frame, in either direction. */
 	zoomMaxStep: 1.5,
 	/** Pinch separation in stage pixels below which the zoom factor is held at 1. */
-	zoomMinSpan: 8
+	zoomMinSpan: 8,
+	/** Pointing at a rail tile this long selects it. */
+	dwellMs: 700
 };
 interface Vec {
 	x: number;
