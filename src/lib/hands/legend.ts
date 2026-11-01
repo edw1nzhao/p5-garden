@@ -14,10 +14,17 @@ export const LEGEND: readonly LegendEntry[] = [
 	{ mode: 'shimmer', gesture: 'Two fingers', effect: 'Paint with shimmer', hue: 50 },
 	{ mode: 'mirror', gesture: 'Three fingers', effect: 'Mirror what you paint', hue: 190 },
 	{ mode: 'colour', gesture: 'L shape', effect: 'Raise or lower to pick a colour', hue: 330 },
-	{ mode: 'breeze', gesture: 'Open hand', effect: 'Wave for a breeze, sweep to clear', hue: 205 },
+	{ mode: 'breeze', gesture: 'Open hand', effect: 'Wave for a breeze', hue: 205 },
 	{ mode: 'zoom', gesture: 'Both pinch', effect: 'Spread, squeeze and drag to zoom', hue: 160 }
 ];
 
 export const MODE_HUE: Partial<Record<Mode, number>> = Object.fromEntries(
 	LEGEND.map((e) => [e.mode, e.hue])
 );
+
+/** Not a mode of its own: both hands together, so it is listed after the single-hand gestures. */
+export const CLEAR_ENTRY = {
+	gesture: 'Both hands open',
+	effect: 'Hold still to clear the garden',
+	hue: 0
+};

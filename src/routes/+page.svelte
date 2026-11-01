@@ -5,12 +5,18 @@
 	import { View } from '#lib/garden/view.svelte.js';
 	import Panel from '#lib/garden/Panel.svelte';
 	import CodePanel from '#lib/garden/CodePanel.svelte';
+	import HandsGuide from '#lib/hands/HandsGuide.svelte';
 	import HandsLegend from '#lib/hands/HandsLegend.svelte';
+	import Toast from '#lib/garden/Toast.svelte';
+	import { clearGarden, toasts } from '#lib/garden/toast.svelte.js';
+	import { guide } from '#lib/hands/guide.svelte.js';
+	import { settings } from '#lib/settings.svelte.js';
 	import { tracker } from '#lib/hands/tracker.svelte.js';
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import {
 		Brush as BrushIcon,
 		CodeXml,
+		Eraser,
 		Hand,
 		Redo2,
 		Undo2,
@@ -57,6 +63,30 @@
 	);
 	let video = $state<HTMLVideoElement>();
 	onMount(() => () => tracker.stop());
+
+	const nothingToGrab = $derived(tool === 'arrange' && scene.elements.length === 0);
+	const switchToPaint = () => (tool = 'paint');
+
+	let handsWereOn = false;
+	$effect(() => {
+		const on = tracker.status === 'on';
+		if (on === handsWereOn) return;
+		handsWereOn = on;
+		untrack(() => {
+			if (!on) return guide.close(false);
+			if (!settings.handsOnboarded) guide.start();
+			else if (nothingToGrab)
+				toasts.show(
+					'Nothing to grab yet in Arrange. Plant a seed, or paint with your hands.',
+					{ label: 'Switch to Paint', run: switchToPaint },
+					10000
+				);
+		});
+	});
+
+	function clearAll() {
+		if (clearGarden(scene)) stack = null;
+	}
 
 	function toggleHands() {
 		if (tracker.status === 'on' || tracker.status === 'loading') tracker.stop();
@@ -258,6 +288,16 @@
 			<span class="sep" role="presentation"></span>
 			<button
 				type="button"
+				class="tool"
+				title="Clear the garden (undo brings it back)"
+				disabled={scene.elements.length === 0}
+				onclick={clearAll}
+			>
+				<Eraser size={18} aria-hidden="true" />
+				<span>Clear</span>
+			</button>
+			<button
+				type="button"
 				class="tool icon-only"
 				aria-label="Undo"
 				title="Undo (Ctrl/⌘+Z)"
@@ -311,8 +351,14 @@
 	{/if}
 
 	{#if tracker.status === 'on'}
-		<HandsLegend />
+		{#if guide.open}
+			<HandsGuide {nothingToGrab} onpaint={switchToPaint} />
+		{:else}
+			<HandsLegend />
+		{/if}
 	{/if}
+
+	<Toast />
 
 	<figure class="cam glass" class:on={tracker.status === 'on'}>
 		<video bind:this={video} muted playsinline aria-hidden="true"></video>

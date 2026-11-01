@@ -102,7 +102,8 @@ function drawBadges(p: p5) {
 		const tint = MODE_HUE[mode];
 		const showsMode = role === 'off' ? tint !== undefined : mode === 'zoom';
 		const hue = showsMode ? tint! : ROLE_HUE[role];
-		const label = `${ROLE_LABEL[role]} · ${reading.shape}${showsMode && role === 'off' ? ` → ${mode}` : ''}`;
+		const sure = tracker.labels ? ` ${reading.confidence.toFixed(2)}` : '';
+		const label = `${ROLE_LABEL[role]} · ${reading.shape}${sure}${showsMode && role === 'off' ? ` → ${mode}` : ''}`;
 		const x = Math.min(p.width - 4, Math.max(4, reading.wrist.x * p.width));
 		const y = Math.min(p.height - 14, reading.wrist.y * p.height + 18);
 		const w = p.textWidth(label) + 14;

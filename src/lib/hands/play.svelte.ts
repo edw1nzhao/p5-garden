@@ -1,11 +1,12 @@
-import { settings } from '../settings.svelte.js';
 import type { HandsState } from './pipeline.js';
 import { createModes, IDLE, type Intents } from './modes.js';
 
 /** What the off hand is asking for right now, shared by the canvas, the sketch and the legend. */
 class HandPlay {
 	intents = $state.raw<Intents>(IDLE);
-	#modes = createModes({ sweepEnabled: () => settings.sweepToClear });
+	/** Set by the stage; the clear gesture is ignored while this says the garden is empty. */
+	canClear = () => true;
+	#modes = createModes({ canClear: () => this.canClear() });
 
 	update(hands: HandsState, time: number, size: { width: number; height: number }) {
 		return (this.intents = this.#modes.step(hands, time, size));

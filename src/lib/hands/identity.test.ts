@@ -114,10 +114,21 @@ describe('HandSlots', () => {
 		expect(run(true).drawing).not.toBeNull();
 	});
 
-	it('reads labels as the user’s own hands (unverified until the webcam check)', () => {
+	it('reads labels as the user’s own hands by default', () => {
 		expect(LABEL_IS_USERS_HAND).toBe(true);
 		const out = new HandSlots({ drawingHand: 'Right' }).update(frame(0, [at(0.4)]));
 		expect(out.drawing).not.toBeNull();
+	});
+
+	it('swaps the roles of single hands when labels are inverted for this user', () => {
+		const roleOf = (label: 'Left' | 'Right', labelsInverted: boolean) => {
+			const out = new HandSlots({ drawingHand: 'Right', labelsInverted }).update(
+				frame(0, [at(0.4, 0.7, 'open', label)])
+			);
+			return out.drawing ? 'drawing' : 'off';
+		};
+		expect([roleOf('Right', false), roleOf('Left', false)]).toEqual(['drawing', 'off']);
+		expect([roleOf('Right', true), roleOf('Left', true)]).toEqual(['off', 'drawing']);
 	});
 });
 

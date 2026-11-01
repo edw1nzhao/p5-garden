@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { CALIBRATED_SHAPES, type Templates } from './hands/calibration.js';
 import { settings, SETTINGS_KEY } from './settings.svelte.js';
 
 function stubStorage(initial: Record<string, string> = {}) {
@@ -10,43 +11,68 @@ function stubStorage(initial: Record<string, string> = {}) {
 	return data;
 }
 
+const templates = Object.fromEntries(
+	CALIBRATED_SHAPES.map((s, i) => [s, [i, 1, 1, 1, 0.5]])
+) as Templates;
+
 afterEach(() => {
 	vi.unstubAllGlobals();
 	settings.drawingHand = 'Right';
-	settings.sweepToClear = true;
+	settings.labelsInverted = false;
+	settings.handsOnboarded = false;
+	settings.calibration = null;
 });
 
+const saved = (data: Map<string, string>) => JSON.parse(data.get(SETTINGS_KEY)!);
+
 describe('settings', () => {
-	it('defaults to the right hand', () => {
+	it('defaults to the right hand, upright labels, no setup and no calibration', () => {
 		expect(settings.drawingHand).toBe('Right');
+		expect(settings.labelsInverted).toBe(false);
+		expect(settings.handsOnboarded).toBe(false);
+		expect(settings.calibration).toBeNull();
 	});
 
 	it('saves the drawing hand under one key and loads it back', () => {
 		const data = stubStorage();
 		settings.drawingHand = 'Left';
-		expect(JSON.parse(data.get(SETTINGS_KEY)!)).toEqual({
-			drawingHand: 'Left',
-			sweepToClear: true
-		});
+		expect(saved(data)).toMatchObject({ drawingHand: 'Left' });
 		settings.drawingHand = 'Right';
 		data.set(SETTINGS_KEY, JSON.stringify({ drawingHand: 'Left' }));
 		settings.load();
 		expect(settings.drawingHand).toBe('Left');
 	});
 
-	it('keeps sweep to clear on by default and saves the choice', () => {
+	it('saves and loads the label convention, the setup flag and the calibration', () => {
 		const data = stubStorage();
-		expect(settings.sweepToClear).toBe(true);
-		settings.sweepToClear = false;
-		expect(JSON.parse(data.get(SETTINGS_KEY)!)).toEqual({
+		settings.labelsInverted = true;
+		settings.handsOnboarded = true;
+		settings.calibration = templates;
+		expect(saved(data)).toEqual({
 			drawingHand: 'Right',
-			sweepToClear: false
+			labelsInverted: true,
+			handsOnboarded: true,
+			calibration: templates
 		});
-		settings.sweepToClear = true;
-		data.set(SETTINGS_KEY, JSON.stringify({ sweepToClear: false }));
+		const stored = data.get(SETTINGS_KEY)!;
+		settings.labelsInverted = false;
+		settings.handsOnboarded = false;
+		settings.calibration = null;
+		data.set(SETTINGS_KEY, stored);
 		settings.load();
-		expect(settings.sweepToClear).toBe(false);
-		expect(settings.drawingHand).toBe('Right');
+		expect(settings.labelsInverted).toBe(true);
+		expect(settings.handsOnboarded).toBe(true);
+		expect(settings.calibration).toEqual(templates);
+	});
+
+	it('forgets an old sweep setting and drops a malformed calibration', () => {
+		const data = stubStorage({
+			[SETTINGS_KEY]: JSON.stringify({ sweepToClear: false, calibration: { fist: [1] } })
+		});
+		settings.load();
+		expect(settings.calibration).toBeNull();
+		settings.drawingHand = 'Left';
+		expect(saved(data)).not.toHaveProperty('sweepToClear');
 	});
 
 	it('ignores junk and keeps working when storage throws', () => {

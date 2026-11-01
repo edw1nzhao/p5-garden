@@ -16,6 +16,8 @@ const reading = (over: Partial<HandReading> = {}): HandReading => ({
 	shape: 'none',
 	wrist: { x: 0.5, y: 0.5 },
 	openness: 1,
+	confidence: 1,
+	measures: { fingers: [1, 1, 1, 1], thumb: 0.5 },
 	...over
 });
 const hands = (
@@ -139,9 +141,9 @@ describe('breeze', () => {
 	};
 
 	it('stays calm for a still hand and rises with speed', () => {
-		const still = last(move(createModes({ sweepEnabled: () => false }), 0, 20));
-		const slow = last(move(createModes({ sweepEnabled: () => false }), 0.5, 20));
-		const fast = last(move(createModes({ sweepEnabled: () => false }), 1.2, 20));
+		const still = last(move(createModes(), 0, 20));
+		const slow = last(move(createModes(), 0.5, 20));
+		const fast = last(move(createModes(), 1.2, 20));
 		expect(still.gust).toBe(0);
 		expect(slow.gust).toBeGreaterThan(0.05);
 		expect(fast.gust).toBeGreaterThan(slow.gust);
@@ -149,7 +151,7 @@ describe('breeze', () => {
 	});
 
 	it('decays smoothly after the hand stops, even with no further updates', () => {
-		const modes = createModes({ sweepEnabled: () => false });
+		const modes = createModes();
 		const peak = last(move(modes, 1.2, 20)).gust;
 		const t = 19 * MS;
 		const later = [0, 200, 500, 1000, 3000].map((ms) => modes.gustAt(t + ms));
@@ -166,64 +168,105 @@ describe('breeze', () => {
 	});
 });
 
-describe('sweep to clear', () => {
-	const palm = (x: number, extra: Partial<HandsState> = {}) => ({
-		...hands({ shape: 'open', wrist: { x, y: 0.5 } }),
+describe('hold both palms open to clear', () => {
+	const C = MODE_CONSTANTS;
+	const palms = (dx = 0, dy = 0, extra: Partial<HandsState> = {}): HandsState => ({
+		...hands(
+			{ shape: 'open', wrist: { x: 0.7 + dx, y: 0.6 + dy } },
+			{ shape: 'open', wrist: { x: 0.3 - dx, y: 0.6 + dy } }
+		),
 		...extra
 	});
-	/** Wrist travels `distance` frame widths over `ms`, starting at `from`. */
-	const sweep = (distance: number, ms: number, from = 0.15) => {
-		const n = Math.round(ms / MS);
-		return Array.from({ length: n + 1 }, (_, i) => palm(from + (distance * i) / n));
-	};
+	const frames = (ms: number) => Math.ceil(ms / MS) + 1;
+	const hold = (ms = C.clearHoldMs + 100) => repeat(palms(), frames(ms));
 	const wipes = (out: Intents[]) => out.filter((o) => o.wipe).length;
 
-	it('fires once for a fast rightward sweep', () => {
-		expect(wipes(run(createModes(), sweep(0.7, 400)))).toBe(1);
+	it('fires once after the hold, not before', () => {
+		const out = run(createModes(), hold());
+		const first = out.findIndex((o) => o.wipe);
+		expect(wipes(out)).toBe(1);
+		expect(first * MS).toBeGreaterThanOrEqual(C.clearHoldMs);
+		expect(first * MS).toBeLessThan(C.clearHoldMs + 2 * MS);
 	});
 
-	it('fires for a leftward sweep and reports its direction', () => {
-		const right = run(createModes(), sweep(0.7, 400)).find((o) => o.wipe);
-		const left = run(createModes(), sweep(-0.7, 400, 0.85)).find((o) => o.wipe);
-		expect([right?.wipeDir, left?.wipeDir]).toEqual([1, -1]);
+	it('reports progress rising towards 1 and back to 0 after firing', () => {
+		const mid = last(run(createModes(), hold(C.clearHoldMs / 2))).clearProgress;
+		expect(mid).toBeGreaterThan(0.4);
+		expect(mid).toBeLessThan(0.6);
+		expect(last(run(createModes(), hold())).clearProgress).toBe(0);
 	});
 
-	it('ignores slow waving and short sweeps', () => {
-		expect(wipes(run(createModes(), sweep(0.7, 1800)))).toBe(0);
-		expect(wipes(run(createModes(), sweep(0.5, 300)))).toBe(0);
-	});
-
-	it('ignores a sweep with the drawing hand pinching', () => {
-		const states = sweep(0.7, 400).map((s) => ({ ...s, drawing: reading({ pinching: true }) }));
-		expect(wipes(run(createModes(), states))).toBe(0);
-	});
-
-	it('ignores a sweep while the hands cross', () => {
-		const states = sweep(0.7, 400).map((s) => ({ ...s, crossing: true }));
-		const out = run(createModes(), states);
+	it('tolerates small wrist jitter but restarts when either hand moves too far', () => {
+		const jitter = Array.from({ length: frames(C.clearHoldMs + 100) }, (_, i) =>
+			palms((i % 2 ? 1 : -1) * C.clearMoveTolerance * 0.3)
+		);
+		expect(wipes(run(createModes(), jitter))).toBe(1);
+		const drift = Array.from({ length: frames(C.clearHoldMs + 100) }, (_, i) => palms(i * 0.005));
+		const out = run(createModes(), drift);
 		expect(wipes(out)).toBe(0);
-		expect(out.every((o) => o.gust === 0)).toBe(true);
+		expect(last(out).clearProgress).toBeLessThan(0.5);
 	});
 
-	it('needs an open palm', () => {
-		const states = sweep(0.7, 400).map((s) => hands({ ...s.off!, shape: 'two' }));
-		expect(wipes(run(createModes(), states))).toBe(0);
+	it('measures movement from where the hold began, so a slow creep still restarts', () => {
+		const creep = Array.from({ length: frames(C.clearHoldMs + 100) }, (_, i) =>
+			palms(0, i * 0.002)
+		);
+		expect(wipes(run(createModes(), creep))).toBe(0);
 	});
 
-	it('respects the setting, read on every update', () => {
-		let enabled = false;
-		const modes = createModes({ sweepEnabled: () => enabled });
-		expect(wipes(run(modes, sweep(0.7, 400)))).toBe(0);
-		enabled = true;
-		expect(wipes(run(modes, sweep(0.7, 400), 2000))).toBe(1);
+	it('restarts the hold after a move', () => {
+		const out = run(createModes(), [...hold(C.clearHoldMs * 0.7), palms(0.2), ...hold()]);
+		expect(wipes(out)).toBe(1);
+		expect(out.findIndex((o) => o.wipe) * MS).toBeGreaterThan(C.clearHoldMs * 1.5);
+	});
+
+	it.each<[string, (s: HandsState) => HandsState]>([
+		['the off hand leaves open', (s) => hands({ ...s.off!, shape: 'two' }, s.drawing)],
+		['the drawing hand leaves open', (s) => hands(s.off, { ...s.drawing!, shape: 'fist' })],
+		['a hand drops out', (s) => hands(s.off, null)],
+		[
+			'the drawing hand pinches',
+			(s) => hands(s.off, { ...s.drawing!, shape: 'pinch', pinching: true })
+		],
+		['the hands cross', (s) => ({ ...s, crossing: true })]
+	])('cancels and resets when %s mid-hold', (_, change) => {
+		const start = hold(C.clearHoldMs * 0.6);
+		const broken = repeat(change(palms()), 3);
+		const out = run(createModes(), [...start, ...broken, ...hold(C.clearHoldMs * 0.6)]);
+		expect(wipes(out)).toBe(0);
+		expect(out.slice(start.length, start.length + 3).every((o) => o.clearProgress === 0)).toBe(
+			true
+		);
+	});
+
+	it('needs both hands', () => {
+		const one = repeat(hands({ shape: 'open' }, null), frames(C.clearHoldMs + 100));
+		expect(wipes(run(createModes(), one))).toBe(0);
 	});
 
 	it('waits out the cooldown, then fires again', () => {
 		const modes = createModes();
-		const first = wipes(run(modes, sweep(0.7, 400), 0));
-		const during = wipes(run(modes, sweep(-0.7, 400, 0.85), 600));
-		const after = wipes(run(modes, sweep(-0.7, 400, 0.85), 3000));
+		const first = wipes(run(modes, hold(), 0));
+		const during = wipes(run(modes, hold(C.clearHoldMs), C.clearHoldMs + 200));
+		const after = wipes(run(modes, hold(), C.clearHoldMs + C.clearCooldownMs + 500));
 		expect([first, during, after]).toEqual([1, 0, 1]);
+	});
+
+	it('does nothing while the garden is empty, and asks on every update', () => {
+		let canClear = false;
+		const modes = createModes({ canClear: () => canClear });
+		const empty = run(modes, hold(), 0);
+		expect(wipes(empty)).toBe(0);
+		expect(empty.every((o) => o.clearProgress === 0)).toBe(true);
+		canClear = true;
+		expect(wipes(run(modes, hold(), 5000))).toBe(1);
+	});
+
+	it('is not triggered by a fast sweep of one open palm', () => {
+		const sweep = Array.from({ length: 14 }, (_, i) =>
+			hands({ shape: 'open', wrist: { x: 0.15 + i * 0.05, y: 0.5 } }, null)
+		);
+		expect(wipes(run(createModes(), sweep))).toBe(0);
 	});
 });
 

@@ -41,12 +41,12 @@ describe('ShapeClassifier', () => {
 		const landmarks = hand([0.5, 0.55], 'fist', { aspect: ASPECT }).landmarks;
 		expect(pinchRatio(landmarks, ASPECT)).toBeLessThan(0.3);
 		const read = new ShapeClassifier().read(landmarks, ASPECT, true);
-		expect(read).toEqual({ shape: 'fist', pinching: false });
+		expect(read).toMatchObject({ shape: 'fist', pinching: false });
 	});
 
 	it('keeps a real pinch a pinch', () => {
 		const landmarks = hand([0.5, 0.55], 'pinch', { aspect: ASPECT }).landmarks;
-		expect(new ShapeClassifier().read(landmarks, ASPECT, true)).toEqual({
+		expect(new ShapeClassifier().read(landmarks, ASPECT, true)).toMatchObject({
 			shape: 'pinch',
 			pinching: true
 		});

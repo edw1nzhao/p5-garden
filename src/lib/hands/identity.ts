@@ -25,9 +25,11 @@ export interface SlotOptions {
 	gate?: number;
 	/** Wrist distance, in frame widths, below which the hands count as crossing. */
 	crossing?: number;
+	/** MediaPipe's labels name the opposite hand for this user; learned during setup. */
+	labelsInverted?: boolean;
 }
 
-// Unverified: MediaPipe's docs say labels name the user's own hands for unmirrored input.
+// The default; setup checks it against the user's own right hand and stores the answer.
 export const LABEL_IS_USERS_HAND = true;
 
 interface Vec {
@@ -54,9 +56,7 @@ interface Detection {
 const ROLES: Role[] = ['drawing', 'off'];
 const other = (role: Role): Role => (role === 'drawing' ? 'off' : 'drawing');
 const distance = (a: Vec, b: Vec) => Math.hypot(a.x - b.x, a.y - b.y);
-const usersHand = (hand: RawHand): Handedness =>
-	LABEL_IS_USERS_HAND ? hand.label : hand.label === 'Left' ? 'Right' : 'Left';
-const vote = (hand: RawHand) => (usersHand(hand) === 'Right' ? 1 : -1) * hand.score;
+const flip = (label: Handedness): Handedness => (label === 'Left' ? 'Right' : 'Left');
 // How fast a hand's label vote follows new frames, and how sure it must be to change role.
 const BELIEF_RATE = 0.2;
 const ROLE_MARGIN = 0.3;
@@ -73,6 +73,7 @@ export class HandSlots {
 			graceMs: 300,
 			gate: 0.25,
 			crossing: 0.15,
+			labelsInverted: !LABEL_IS_USERS_HAND,
 			...options
 		};
 	}
@@ -112,6 +113,14 @@ export class HandSlots {
 			return track ? { id: track.id, hand: track.hand } : null;
 		};
 		return { time, aspect: frame.aspect, drawing: out('drawing'), off: out('off'), crossing };
+	}
+
+	#usersHand(hand: RawHand): Handedness {
+		return this.#options.labelsInverted ? flip(hand.label) : hand.label;
+	}
+
+	#vote(hand: RawHand) {
+		return (this.#usersHand(hand) === 'Right' ? 1 : -1) * hand.score;
 	}
 
 	/** The pairing of tracks to detections that matches the most hands, then the closest. */
@@ -160,7 +169,7 @@ export class HandSlots {
 			track.vel = { x: (track.vel.x + vx) / 2, y: (track.vel.y + vy) / 2 };
 		}
 		track.pos = detection.pos;
-		track.belief += BELIEF_RATE * (vote(detection.hand) - track.belief);
+		track.belief += BELIEF_RATE * (this.#vote(detection.hand) - track.belief);
 		track.hand = detection.hand;
 		track.seen = time;
 	}
@@ -174,12 +183,12 @@ export class HandSlots {
 			vel: { x: 0, y: 0 },
 			seen: time,
 			born: time,
-			belief: vote(d.hand)
+			belief: this.#vote(d.hand)
 		});
 		if (born.length === 2 && !this.#tracks.drawing && !this.#tracks.off) {
 			const [a, b] = born;
-			const aLabel = usersHand(a.hand) === drawingHand;
-			const bLabel = usersHand(b.hand) === drawingHand;
+			const aLabel = this.#usersHand(a.hand) === drawingHand;
+			const bLabel = this.#usersHand(b.hand) === drawingHand;
 			// The user's right hand shows on the left of an unmirrored camera image.
 			const aSide = drawingHand === 'Right' ? a.pos.x < b.pos.x : a.pos.x > b.pos.x;
 			const aDraws = aLabel !== bLabel ? aLabel : aSide;
@@ -187,7 +196,7 @@ export class HandSlots {
 			return;
 		}
 		for (const d of born) {
-			const wanted: Role = usersHand(d.hand) === drawingHand ? 'drawing' : 'off';
+			const wanted: Role = this.#usersHand(d.hand) === drawingHand ? 'drawing' : 'off';
 			const role = !this.#tracks[wanted]
 				? wanted
 				: !this.#tracks[other(wanted)]

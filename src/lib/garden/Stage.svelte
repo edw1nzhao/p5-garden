@@ -15,10 +15,12 @@
 		strokeFromPath
 	} from '#lib/scene/geometry.js';
 	import type { Brush, Scene } from '#lib/scene/scene.svelte.js';
-	import { Maximize2, Move, RotateCw, Undo2 } from '@lucide/svelte';
+	import { Maximize2, Move, RotateCw } from '@lucide/svelte';
 	import { BACKDROPS } from './backdrops.js';
 	import { KINDS } from './kinds.js';
+	import Ring from '#lib/hands/Ring.svelte';
 	import { gardenSketch } from './sketch.js';
+	import { clearGarden } from './toast.svelte.js';
 	import type { View } from './view.svelte.js';
 
 	let {
@@ -143,25 +145,10 @@
 	const hueMarker = $derived(
 		(((play.intents.hue ?? 0) / HUE_STEP + 0.5) / MODE_CONSTANTS.hueSteps) * 100
 	);
-	let sweep = $state.raw<{ id: number; dir: 1 | -1 } | null>(null);
-	let toast = $state.raw<{ id: number } | null>(null);
-	let toastTimer: ReturnType<typeof setTimeout> | undefined;
-	const TOAST_MS = 6000;
-	const toastVisible = $derived(toast !== null && scene.elements.length === 0);
+	play.canClear = () => scene.elements.length > 0;
 
-	function wipe(dir: 1 | -1) {
-		if (!scene.clear()) return;
-		stack = null;
-		const id = (sweep?.id ?? 0) + 1;
-		sweep = prefersReducedMotion.current ? null : { id, dir };
-		toast = { id };
-		clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => (toast = null), TOAST_MS);
-	}
-
-	function undoWipe() {
-		scene.undo();
-		toast = null;
+	function wipe() {
+		if (clearGarden(scene)) stack = null;
 	}
 
 	function onStageDown(e: PointerEvent) {
@@ -283,7 +270,7 @@
 		untrack(() => {
 			const intents = play.update(hands, performance.now(), stage);
 			if (intents.cancel && handDriven) cancelHandAction();
-			if (intents.wipe && intents.wipeDir) wipe(intents.wipeDir);
+			if (intents.wipe) wipe();
 			if (intents.view) {
 				const { dx, dy, factor, cx, cy } = intents.view;
 				view.panBy(dx, dy);
@@ -447,16 +434,10 @@
 				<span class="marker" style="top: {hueMarker}%; --hue: {play.intents.hue ?? 0}"></span>
 			</div>
 		{/if}
-		{#if sweep}
-			{#key sweep.id}
-				<div class="sweep" class:left={sweep.dir < 0} aria-hidden="true"></div>
-			{/key}
-		{/if}
-		{#if toastVisible}
-			<div class="toast glass" role="status">
-				<span>Garden cleared</span>
-				<button type="button" onclick={undoWipe}><Undo2 size={14} aria-hidden="true" /> Undo</button
-				>
+		{#if play.intents.clearProgress > 0}
+			<div class="clear-ring glass" data-testid="clear-ring" aria-hidden="true">
+				<Ring value={play.intents.clearProgress} size={112} label="Hold to clear" />
+				<span>Keep both hands open and still to clear</span>
 			</div>
 		{/if}
 		<div class="actions">
@@ -543,69 +524,19 @@
 			0 0 0 2px #fff,
 			0 0 0 3px rgb(0 0 0 / 0.5);
 	}
-	.sweep {
-		position: absolute;
-		inset: 0;
-		z-index: 1;
-		pointer-events: none;
-		background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.28) 50%, transparent);
-		animation: sweep 450ms ease-out forwards;
-	}
-	.sweep.left {
-		animation-name: sweep-left;
-	}
-	@keyframes sweep {
-		from {
-			transform: translateX(-100%);
-		}
-		to {
-			transform: translateX(100%);
-		}
-	}
-	@keyframes sweep-left {
-		from {
-			transform: translateX(100%);
-		}
-		to {
-			transform: translateX(-100%);
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.sweep {
-			display: none;
-		}
-	}
-	.toast {
+	.clear-ring {
 		position: absolute;
 		left: 50%;
-		bottom: 128px;
-		transform: translateX(-50%);
+		top: 50%;
+		transform: translate(-50%, -50%);
 		z-index: 3;
-		display: flex;
-		align-items: center;
-		gap: calc(var(--space) * 3);
-		padding: calc(var(--space) * 2) calc(var(--space) * 2) calc(var(--space) * 2)
-			calc(var(--space) * 4);
-		border-radius: var(--radius-pill);
+		display: grid;
+		justify-items: center;
+		gap: calc(var(--space) * 2);
+		padding: calc(var(--space) * 5);
+		border-radius: var(--radius-lg);
 		font-size: var(--text-sm);
-		white-space: nowrap;
-	}
-	.toast button {
-		display: inline-flex;
-		align-items: center;
-		gap: calc(var(--space) * 1.5);
-		height: calc(var(--space) * 7);
-		padding: 0 calc(var(--space) * 3);
-		border: 0;
-		border-radius: var(--radius-pill);
-		background: var(--accent-strong);
-		color: var(--fg);
-		font: inherit;
-		cursor: pointer;
-	}
-	.toast button:focus-visible {
-		outline: 2px solid var(--accent-soft);
-		outline-offset: 2px;
+		pointer-events: none;
 	}
 	.actions {
 		position: absolute;

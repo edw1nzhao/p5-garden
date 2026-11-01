@@ -16,14 +16,22 @@ export const MODE_CONSTANTS = {
 	gustMax: 0.8,
 	gustAttackMs: 150,
 	gustDecayMs: 700,
-	sweepDistance: 0.6,
-	sweepWindowMs: 600,
-	sweepCooldownMs: 1500,
+	/** Both open palms held still this long clear the garden. */
+	clearHoldMs: 1200,
+	/** Frame widths a wrist may stray from where the hold began. */
+	clearMoveTolerance: 0.04,
+	clearCooldownMs: 2000,
+	frameAspect: 4 / 3,
 	/** Largest zoom factor accepted in one frame, in either direction. */
 	zoomMaxStep: 1.5,
 	/** Pinch separation in stage pixels below which the zoom factor is held at 1. */
 	zoomMinSpan: 8
 };
+interface Vec {
+	x: number;
+	y: number;
+}
+
 export type ModeConstants = typeof MODE_CONSTANTS;
 
 export interface ViewDelta {
@@ -50,8 +58,8 @@ export interface Intents {
 	gust: number;
 	/** The garden should be cleared now (fires for one update). */
 	wipe: boolean;
-	/** Which way the sweep travelled on screen: 1 rightward, -1 leftward, 0 when not wiping. */
-	wipeDir: -1 | 0 | 1;
+	/** How far the two-palm hold has come, 0 to 1. */
+	clearProgress: number;
 	/** Zoom and pan to apply this update. */
 	view: ViewDelta | null;
 	/** Abandon the drawing hand's current action (fires for one update). */
@@ -69,7 +77,7 @@ export const IDLE: Intents = {
 	picking: false,
 	gust: 0,
 	wipe: false,
-	wipeDir: 0,
+	clearProgress: 0,
 	view: null,
 	cancel: false,
 	pinching: false
@@ -84,8 +92,8 @@ const BRUSH_SHAPES: Partial<Record<Shape, { mode: Mode; brush: Brush | null }>> 
 
 export interface ModeOptions {
 	constants?: Partial<ModeConstants>;
-	/** Read on every update, so the setting can change while hands are tracked. */
-	sweepEnabled?: () => boolean;
+	/** Read on every update; false while the garden is empty. */
+	canClear?: () => boolean;
 }
 
 export interface Modes {
@@ -95,13 +103,14 @@ export interface Modes {
 	gustAt(time: number): number;
 }
 
-export function createModes({ constants, sweepEnabled = () => true }: ModeOptions = {}): Modes {
+export function createModes({ constants, canClear = () => true }: ModeOptions = {}): Modes {
 	const c = { ...MODE_CONSTANTS, ...constants };
 	let hue: number | null = null;
 	let gust = 0;
 	let gustTime = 0;
 	let lastTime: number | null = null;
-	let samples: { x: number; t: number }[] = [];
+	let prevWrist: { x: number; t: number } | null = null;
+	let hold: { start: number; drawing: Vec; off: Vec } | null = null;
 	let cooldownUntil = -Infinity;
 	let zoom: { span: number; x: number; y: number } | null = null;
 	let blocked = false;
@@ -124,13 +133,25 @@ export function createModes({ constants, sweepEnabled = () => true }: ModeOption
 		gustTime = time;
 	}
 
-	/** The direction of travel once the open palm has crossed `sweepDistance` within the window. */
-	function swept(x: number, time: number): -1 | 0 | 1 {
-		samples = samples.filter((s) => time - s.t <= c.sweepWindowMs);
-		samples.push({ x, t: time });
-		const xs = samples.map((s) => s.x);
-		if (x - Math.min(...xs) >= c.sweepDistance) return 1;
-		return Math.max(...xs) - x >= c.sweepDistance ? -1 : 0;
+	function clearHold(
+		drawing: HandReading | null,
+		off: HandReading | null,
+		eligible: boolean,
+		time: number
+	): { progress: number; fire: boolean } {
+		if (!drawing || !off || !eligible || time < cooldownUntil || !canClear()) {
+			hold = null;
+			return { progress: 0, fire: false };
+		}
+		const strayed = (now: Vec, then: Vec) =>
+			Math.hypot(now.x - then.x, (now.y - then.y) / c.frameAspect) > c.clearMoveTolerance;
+		if (!hold || strayed(drawing.wrist, hold.drawing) || strayed(off.wrist, hold.off))
+			hold = { start: time, drawing: drawing.wrist, off: off.wrist };
+		const progress = Math.min(1, (time - hold.start) / c.clearHoldMs);
+		if (progress < 1) return { progress, fire: false };
+		hold = null;
+		cooldownUntil = time + c.clearCooldownMs;
+		return { progress: 0, fire: true };
 	}
 
 	function pinchZoom(
@@ -170,26 +191,21 @@ export function createModes({ constants, sweepEnabled = () => true }: ModeOption
 
 			const shape = off?.shape ?? 'none';
 			const open = !!off && shape === 'open' && !crossing && !zooming;
-			let wipeDir: -1 | 0 | 1 = 0;
 			let target = 0;
 			if (open) {
-				const prev = samples.at(-1);
-				if (prev && time > prev.t) {
-					const speed = Math.abs(off.wrist.x - prev.x) / ((time - prev.t) / 1000);
+				if (prevWrist && time > prevWrist.t) {
+					const speed = Math.abs(off.wrist.x - prevWrist.x) / ((time - prevWrist.t) / 1000);
 					target = Math.min(
 						1,
 						Math.max(0, speed - c.gustDeadzone) / (c.gustFullSpeed - c.gustDeadzone)
 					);
 				}
-				const dir = swept(off.wrist.x, time);
-				if (dir && sweepEnabled() && !drawing?.pinching && time >= cooldownUntil) {
-					wipeDir = dir;
-					cooldownUntil = time + c.sweepCooldownMs;
-					samples = [];
-				}
-			} else if (!off || crossing || zooming) {
-				samples = [];
+				prevWrist = { x: off.wrist.x, t: time };
+			} else {
+				prevWrist = null;
 			}
+			const bothOpen = open && drawing?.shape === 'open';
+			const clearing = clearHold(drawing, off, bothOpen, time);
 			updateGust(target * c.gustMax, time);
 			lastTime = time;
 
@@ -208,8 +224,8 @@ export function createModes({ constants, sweepEnabled = () => true }: ModeOption
 				hue,
 				picking,
 				gust: gustAt(time),
-				wipe: wipeDir !== 0,
-				wipeDir,
+				wipe: clearing.fire,
+				clearProgress: clearing.progress,
 				view,
 				cancel,
 				pinching: !!drawing?.pinching && !zooming && !blocked
