@@ -1,5 +1,7 @@
 import type { HandLandmarker } from '@mediapipe/tasks-vision';
-import { readHand, type HandState } from './gesture.js';
+import type { HandState } from './gesture.js';
+import { serializeClip, toRawFrame, type RawFrame } from './frames.js';
+import { createPipeline, type Pipeline } from './pipeline.js';
 
 const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm';
 const MODEL =
@@ -21,6 +23,9 @@ export class HandTracker {
 	#landmarker: HandLandmarker | null = null;
 	#frame = 0;
 	#lastTime = -1;
+	#pipeline: Pipeline = createPipeline();
+	/** Frames kept for download when the page is opened with ?record-hands. */
+	#recording: RawFrame[] | null = null;
 
 	async start(video: HTMLVideoElement) {
 		if (this.status === 'loading' || this.status === 'on') return;
@@ -42,6 +47,8 @@ export class HandTracker {
 				numHands: 2
 			});
 			if (!this.#stream) return;
+			this.#pipeline = createPipeline();
+			this.#recording = new URLSearchParams(location.search).has('record-hands') ? [] : null;
 			this.status = 'on';
 			this.#frame = requestAnimationFrame(this.#tick);
 		} catch (error) {
@@ -59,6 +66,8 @@ export class HandTracker {
 		this.#landmarker = null;
 		if (this.#video) this.#video.srcObject = null;
 		this.#lastTime = -1;
+		if (this.#recording?.length) download(serializeClip(this.#recording));
+		this.#recording = null;
 		this.hand = null;
 		this.skeleton = [];
 		this.status = 'off';
@@ -70,15 +79,23 @@ export class HandTracker {
 		if (!video || !landmarker) return;
 		if (video.currentTime !== this.#lastTime && video.readyState >= 2) {
 			this.#lastTime = video.currentTime;
-			const { landmarks } = landmarker.detectForVideo(video, performance.now());
-			this.skeleton = landmarks.map((hand) => hand.map((p) => ({ x: 1 - p.x, y: p.y })));
 			const aspect = video.videoWidth / video.videoHeight || 4 / 3;
-			this.hand = landmarks[0]
-				? readHand(landmarks[0], this.hand?.pinching ?? false, aspect)
-				: null;
+			const now = performance.now();
+			const frame = toRawFrame(landmarker.detectForVideo(video, now), aspect, now);
+			this.#recording?.push(frame);
+			this.skeleton = frame.hands.map((h) => h.landmarks.map((p) => ({ x: 1 - p.x, y: p.y })));
+			this.hand = this.#pipeline(frame);
 		}
 		this.#frame = requestAnimationFrame(this.#tick);
 	};
+}
+
+function download(text: string) {
+	const link = document.createElement('a');
+	link.href = URL.createObjectURL(new Blob([text], { type: 'application/jsonl' }));
+	link.download = `hands-${new Date().toISOString().replace(/[:.]/g, '-')}.jsonl`;
+	link.click();
+	setTimeout(() => URL.revokeObjectURL(link.href));
 }
 
 function explain(error: unknown): string {
