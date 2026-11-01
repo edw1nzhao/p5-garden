@@ -11,9 +11,11 @@
 	import { BACKDROPS } from './backdrops.js';
 	import { KINDS } from './kinds.js';
 	import { gardenSketch } from './sketch.js';
+	import type { View } from './view.svelte.js';
 
 	let {
 		scene,
+		view,
 		element = $bindable(),
 		tool = 'arrange',
 		brush = 'vine',
@@ -21,6 +23,7 @@
 		actions
 	}: {
 		scene: Scene;
+		view: View;
 		element?: HTMLDivElement;
 		tool?: 'arrange' | 'paint';
 		brush?: Brush;
@@ -38,7 +41,7 @@
 	let width = $state(0);
 	let height = $state(0);
 	const stage = $derived({ width, height });
-	const sketch = $derived(gardenSketch(scene));
+	const sketch = $derived(gardenSketch(scene, view));
 	// Under 'demand', reading the elements deeply makes any scene change redraw.
 	const bridge = {
 		get state() {
@@ -46,6 +49,7 @@
 				elements: scene.elements,
 				mood: scene.mood,
 				draft: scene.draft,
+				view: [view.zoom, view.x, view.y],
 				hands: tracker.skeleton
 			};
 		}
@@ -73,6 +77,9 @@
 	const DOCK_CLEARANCE = 112;
 	const PILL_HEIGHT = 44;
 	let gesture: Gesture | null = null;
+	let panning = $state.raw<{ x: number; y: number } | null>(null);
+	let spaceHeld = $state(false);
+	const WHEEL_ZOOM = 0.008;
 
 	const selection = $derived.by(() => {
 		const el = scene.selected;
@@ -80,11 +87,13 @@
 		const cx = el.x * width;
 		const cy = el.y * height;
 		const r = elementRadius(el, stage);
+		const screen = view.toScreen({ x: cx, y: cy });
+		const sr = r * view.zoom;
 		// Leave room for the floating toolbar along the bottom edge.
-		const below = cy + r + PILL_GAP + PILL_HEIGHT <= height - DOCK_CLEARANCE;
-		const pillTop = below ? cy + r + PILL_GAP : cy - r - PILL_GAP - PILL_HEIGHT;
-		const pillLeft = Math.min(Math.max(cx, 110), Math.max(110, width - 110));
-		return { el, cx, cy, r, pillTop, pillLeft };
+		const below = screen.y + sr + PILL_GAP + PILL_HEIGHT <= height - DOCK_CLEARANCE;
+		const pillTop = below ? screen.y + sr + PILL_GAP : screen.y - sr - PILL_GAP - PILL_HEIGHT;
+		const pillLeft = Math.min(Math.max(screen.x, 110), Math.max(110, width - 110));
+		return { el, cx, cy, r, sx: screen.x, sy: screen.y, sr, pillTop, pillLeft };
 	});
 
 	const description = $derived.by(() => {
@@ -99,19 +108,31 @@
 		return `A garden on ${place} with ${parts.join(', ')}, slowly moving.`;
 	});
 
-	function local(e: PointerEvent) {
+	function screenPoint(e: { clientX: number; clientY: number }) {
 		const rect = element!.getBoundingClientRect();
 		return { x: e.clientX - rect.left, y: e.clientY - rect.top };
 	}
 
+	function local(e: PointerEvent) {
+		return view.toWorld(screenPoint(e));
+	}
+
 	function onStageDown(e: PointerEvent) {
-		if (e.button !== 0 || (e.target as Element).closest('button')) return;
+		if ((e.target as Element).closest('button')) return;
+		if (e.button === 1 || (e.button === 0 && spaceHeld)) {
+			e.preventDefault();
+			panning = screenPoint(e);
+			element!.setPointerCapture(e.pointerId);
+			element!.focus();
+			return;
+		}
+		if (e.button !== 0) return;
 		if (!downAt(local(e))) return;
 		element!.setPointerCapture(e.pointerId);
 		element!.focus();
 	}
 
-	/** Starts painting or a move at a stage point; false when the point hit nothing. */
+	/** Starts painting or a move at a world point; false when the point hit nothing. */
 	function downAt(pt: { x: number; y: number }) {
 		if (tool === 'paint') {
 			scene.select(null);
@@ -156,13 +177,19 @@
 	}
 
 	function onMove(e: PointerEvent) {
+		if (panning) {
+			const pt = screenPoint(e);
+			view.panBy(pt.x - panning.x, pt.y - panning.y);
+			panning = pt;
+			return;
+		}
 		moveTo(local(e));
 	}
 
 	function moveTo(pt: { x: number; y: number }) {
 		if (painting) {
 			const last = painting[painting.length - 1];
-			if (Math.hypot(pt.x - last.x, pt.y - last.y) < 3) return;
+			if (Math.hypot(pt.x - last.x, pt.y - last.y) * view.zoom < 3) return;
 			painting.push(pt);
 			scene.draft?.push({ x: pt.x / width, y: pt.y / height });
 			return;
@@ -197,7 +224,7 @@
 		const event = handEvent(prevHand, next);
 		prevHand = next && { pointer: { ...next.pointer }, pinching: next.pinching };
 		if (!event || event === 'hover' || !width) return;
-		const pt = next && { x: next.pointer.x * width, y: next.pointer.y * height };
+		const pt = next && view.toWorld({ x: next.pointer.x * width, y: next.pointer.y * height });
 		untrack(() => {
 			if (event === 'down' && pt) downAt(pt);
 			else if (event === 'move' && pt) moveTo(pt);
@@ -206,6 +233,7 @@
 	});
 
 	function onUp() {
+		panning = null;
 		gesture = null;
 		if (cycle && scene.selectedId) {
 			const next = (cycle.ids.indexOf(scene.selectedId) + 1) % cycle.ids.length;
@@ -218,6 +246,36 @@
 			scene.addStroke(brush, strokeFromPath(smoothPath(painting, 2), stage));
 		painting = null;
 		scene.draft = null;
+	}
+
+	function onWheel(e: WheelEvent) {
+		e.preventDefault();
+		if (e.ctrlKey || e.metaKey) {
+			const { x, y } = screenPoint(e);
+			const delta = Math.max(-50, Math.min(50, e.deltaY));
+			view.zoomAt(Math.exp(-delta * WHEEL_ZOOM), x, y);
+		} else {
+			view.panBy(-e.deltaX, -e.deltaY);
+		}
+	}
+
+	$effect(() => {
+		const stageEl = element;
+		stageEl?.addEventListener('wheel', onWheel, { passive: false });
+		return () => stageEl?.removeEventListener('wheel', onWheel);
+	});
+
+	const typing = (t: EventTarget | null) =>
+		t instanceof HTMLElement &&
+		(t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(t.tagName));
+
+	function onWindowKey(e: KeyboardEvent) {
+		if (e.code !== 'Space') return;
+		if (e.type === 'keyup') spaceHeld = false;
+		else if (!typing(e.target)) {
+			e.preventDefault();
+			spaceHeld = true;
+		}
 	}
 
 	function onKey(e: KeyboardEvent) {
@@ -245,10 +303,13 @@
 	}
 </script>
 
+<svelte:window onkeydown={onWindowKey} onkeyup={onWindowKey} onblur={() => (spaceHeld = false)} />
+
 <!-- role=application is a custom pointer and keyboard surface; the lint treats it as static. -->
 <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 <div
 	class="stage"
+	class:panning={spaceHeld || panning !== null}
 	class:painting={tool === 'paint'}
 	bind:this={element}
 	bind:clientWidth={width}
@@ -271,8 +332,8 @@
 			<div
 				class="selection"
 				data-testid="selection"
-				style="left: {selection.cx}px; top: {selection.cy}px; width: {selection.r *
-					2}px; height: {selection.r * 2}px; transform: translate(-50%, -50%) rotate({selection.el
+				style="left: {selection.sx}px; top: {selection.sy}px; width: {selection.sr *
+					2}px; height: {selection.sr * 2}px; transform: translate(-50%, -50%) rotate({selection.el
 					.rotation}rad);"
 			></div>
 			<!-- Pointer grips; the stage's keyboard shortcuts cover the same actions. -->
@@ -311,6 +372,9 @@
 	}
 	.stage.painting {
 		cursor: cell;
+	}
+	.stage.panning {
+		cursor: grab;
 	}
 	.stage:focus-visible {
 		box-shadow: inset 0 0 0 2px var(--accent-soft);
