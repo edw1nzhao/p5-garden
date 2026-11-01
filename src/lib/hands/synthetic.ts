@@ -69,7 +69,7 @@ function localHand(pose: Pose): Point[] {
 }
 
 /** Mulberry32: a small seeded generator, so synthetic noise is the same on every run. */
-function random(seed: number) {
+export function random(seed: number) {
 	let a = seed >>> 0;
 	return () => {
 		a = (a + 0x6d2b79f5) >>> 0;
