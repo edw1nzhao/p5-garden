@@ -2,6 +2,8 @@
 	import { MAX_SCALE, MIN_SCALE, STYLE_RANGES, type Scene } from '#lib/scene/scene.svelte.js';
 	import { BACKDROPS, BACKDROP_ORDER } from './backdrops.js';
 	import { KINDS } from './kinds.js';
+	import { onMount } from 'svelte';
+	import { settings, type DrawingHand } from '#lib/settings.svelte.js';
 
 	let { scene }: { scene: Scene } = $props();
 
@@ -13,6 +15,9 @@
 		{ name: 'Violet', hue: 265 },
 		{ name: 'Neon', hue: 310 }
 	];
+
+	const HANDS: DrawingHand[] = ['Left', 'Right'];
+	onMount(() => settings.load());
 
 	const el = $derived(scene.selected);
 	const degrees = $derived(
@@ -181,6 +186,22 @@
 				React to pointer
 			</button>
 		</fieldset>
+
+		<fieldset>
+			<legend>Drawing hand</legend>
+			<div class="choice">
+				{#each HANDS as hand (hand)}
+					<button
+						type="button"
+						class="toggle"
+						aria-pressed={settings.drawingHand === hand}
+						onclick={() => (settings.drawingHand = hand)}
+					>
+						{hand}
+					</button>
+				{/each}
+			</div>
+		</fieldset>
 	</div>
 </aside>
 
@@ -312,6 +333,10 @@
 	.toggle[aria-pressed='true'] {
 		background: var(--accent-strong);
 		border-color: var(--accent-soft);
+	}
+	.choice {
+		display: flex;
+		gap: 0.5rem;
 	}
 	.toggle:disabled {
 		opacity: 0.5;

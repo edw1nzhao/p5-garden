@@ -74,4 +74,32 @@ function drawHands(p: p5) {
 		p.circle(pointer.pointer.x * w, pointer.pointer.y * h, 26);
 	}
 	p.pop();
+	drawBadges(p);
+}
+
+const ROLE_HUE = { drawing: 240, off: 35 } as const;
+const ROLE_LABEL = { drawing: 'draw', off: 'off' } as const;
+
+/** A small tag under each tracked wrist: its role and the shape it is making. */
+function drawBadges(p: p5) {
+	p.push();
+	p.textAlign(p.CENTER, p.CENTER);
+	p.textSize(12);
+	p.textStyle(p.BOLD);
+	for (const role of ['drawing', 'off'] as const) {
+		const reading = tracker.hands[role];
+		if (!reading) continue;
+		const label = `${ROLE_LABEL[role]} · ${reading.shape}`;
+		const x = Math.min(p.width - 4, Math.max(4, reading.wrist.x * p.width));
+		const y = Math.min(p.height - 14, reading.wrist.y * p.height + 18);
+		const w = p.textWidth(label) + 14;
+		p.stroke(ROLE_HUE[role], 50, 100, 0.9);
+		p.strokeWeight(1.5);
+		p.fill(ROLE_HUE[role], 60, 25, 0.78);
+		p.rect(x - w / 2, y - 10, w, 20, 10);
+		p.noStroke();
+		p.fill(0, 0, 100);
+		p.text(label, x, y + 0.5);
+	}
+	p.pop();
 }
