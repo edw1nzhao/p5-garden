@@ -31,16 +31,24 @@ export function pinchRatio(landmarks: readonly Landmark[], aspect: number): numb
 	return dist(landmarks[THUMB_TIP], landmarks[INDEX_TIP], aspect) / size;
 }
 
+/** Between thumb and index tips, as fractions of the canvas, mirrored like a selfie. */
+export function pointerOf(landmarks: readonly Landmark[]): HandState['pointer'] {
+	const thumb = landmarks[THUMB_TIP];
+	const index = landmarks[INDEX_TIP];
+	return { x: 1 - (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 };
+}
+
+export const isPinching = (ratio: number, wasPinching: boolean) =>
+	ratio < (wasPinching ? PINCH_END : PINCH_START);
+
 export function readHand(
 	landmarks: readonly Landmark[],
 	wasPinching: boolean,
 	aspect: number
 ): HandState {
-	const thumb = landmarks[THUMB_TIP];
-	const index = landmarks[INDEX_TIP];
 	return {
-		pointer: { x: 1 - (thumb.x + index.x) / 2, y: (thumb.y + index.y) / 2 },
-		pinching: pinchRatio(landmarks, aspect) < (wasPinching ? PINCH_END : PINCH_START)
+		pointer: pointerOf(landmarks),
+		pinching: isPinching(pinchRatio(landmarks, aspect), wasPinching)
 	};
 }
 

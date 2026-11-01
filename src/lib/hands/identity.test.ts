@@ -3,7 +3,7 @@ import type { Handedness, RawFrame, RawHand } from './frames.js';
 import { HandSlots, LABEL_IS_USERS_HAND } from './identity.js';
 import { createPipeline } from './pipeline.js';
 import { replay } from './replay.js';
-import { hand, type Pose } from './synthetic.js';
+import { hand, random, type Pose } from './synthetic.js';
 import { parseClip } from './frames.js';
 import twoHandsText from './fixtures/two-hands.jsonl?raw';
 
@@ -114,5 +114,44 @@ describe('pipeline while hands cross', () => {
 		};
 		expect(run(false)).toEqual([false, false, false, false, false, false]);
 		expect(run(true)).toEqual([true, true, true, true, true, true]);
+	});
+});
+
+describe('pipeline smoothing', () => {
+	const ratioHand = (ratio: number) => {
+		const h = at(0.4, 0.7, 'open');
+		const [wrist, knuckle, index] = [h.landmarks[0], h.landmarks[9], h.landmarks[8]];
+		const size = Math.hypot((wrist.x - knuckle.x) * ASPECT, wrist.y - knuckle.y);
+		h.landmarks[4] = { x: index.x - (ratio * size) / ASPECT, y: index.y, z: index.z };
+		return h;
+	};
+	const transitions = (states: (boolean | undefined)[]) =>
+		states.slice(1).filter((s, i) => s !== states[i]).length;
+
+	it('does not flicker when the fingers hover near the pinch threshold', () => {
+		const noise = (() => {
+			const next = random(11);
+			return () => Math.sqrt(-2 * Math.log(next() || 1e-9)) * Math.cos(2 * Math.PI * next());
+		})();
+		const ratios = Array.from({ length: 150 }, () => 0.37 + 0.06 * noise());
+		const smooth = createPipeline();
+		const filtered = ratios.map((r, i) => smooth(frame(i, [ratioHand(r)]))?.pinching);
+		let wasPinching = false;
+		const raw = ratios.map((r) => {
+			wasPinching = r < (wasPinching ? 0.45 : 0.3);
+			return wasPinching;
+		});
+		expect(transitions(raw)).toBeGreaterThanOrEqual(6);
+		expect(transitions(filtered)).toBeLessThanOrEqual(transitions(raw) / 3);
+	});
+
+	it('still registers a real pinch within three frames', () => {
+		const pipeline = createPipeline();
+		const states = Array.from(
+			{ length: 10 },
+			(_, i) => pipeline(frame(i, [ratioHand(i < 5 ? 1 : 0.05)]))?.pinching
+		);
+		expect(states.indexOf(true)).toBeGreaterThanOrEqual(5);
+		expect(states.indexOf(true)).toBeLessThanOrEqual(7);
 	});
 });

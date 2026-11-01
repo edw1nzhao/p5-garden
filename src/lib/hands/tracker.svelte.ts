@@ -2,6 +2,7 @@ import type { HandLandmarker } from '@mediapipe/tasks-vision';
 import type { HandState } from './gesture.js';
 import { serializeClip, toRawFrame, type RawFrame } from './frames.js';
 import { createPipeline, type Pipeline } from './pipeline.js';
+import { createWithFallback, FrameStats, type Delegate } from './timing.js';
 
 const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm';
 const MODEL =
@@ -19,12 +20,18 @@ export class HandTracker {
 	skeleton = $state.raw<{ x: number; y: number }[][]>([]);
 	/** MediaPipe's label and score for each hand, shown with ?debug-hands. */
 	labels = $state.raw<string[] | null>(null);
+	/** Delegate, detect time and dropped frames, shown with ?debug-hands. */
+	stats = $state('');
 
 	#video: HTMLVideoElement | null = null;
 	#stream: MediaStream | null = null;
 	#landmarker: HandLandmarker | null = null;
 	#frame = 0;
+	#usingVfc = false;
 	#lastTime = -1;
+	#delegate: Delegate = 'GPU';
+	#frameStats = new FrameStats();
+	#statsShownAt = 0;
 	#pipeline: Pipeline = createPipeline();
 	/** Frames kept for download when the page is opened with ?record-hands. */
 	#recording: RawFrame[] | null = null;
@@ -43,18 +50,25 @@ export class HandTracker {
 			await video.play();
 			const { FilesetResolver, HandLandmarker } = await import('@mediapipe/tasks-vision');
 			const fileset = await FilesetResolver.forVisionTasks(WASM);
-			this.#landmarker = await HandLandmarker.createFromOptions(fileset, {
-				baseOptions: { modelAssetPath: MODEL, delegate: 'GPU' },
-				runningMode: 'VIDEO',
-				numHands: 2
-			});
-			if (!this.#stream) return;
+			const { value, delegate } = await createWithFallback((delegate) =>
+				HandLandmarker.createFromOptions(fileset, {
+					baseOptions: { modelAssetPath: MODEL, delegate },
+					runningMode: 'VIDEO',
+					numHands: 2
+				})
+			);
+			if (!this.#stream) return value.close();
+			this.#landmarker = value;
+			this.#delegate = delegate;
+			this.#frameStats = new FrameStats();
+			this.#lastTime = -1;
 			this.#pipeline = createPipeline();
 			const params = new URLSearchParams(location.search);
 			this.#recording = params.has('record-hands') ? [] : null;
 			this.labels = params.has('debug-hands') ? [] : null;
 			this.status = 'on';
-			this.#frame = requestAnimationFrame(this.#tick);
+			this.#usingVfc = 'requestVideoFrameCallback' in video;
+			this.#schedule();
 		} catch (error) {
 			this.stop();
 			this.status = 'error';
@@ -63,7 +77,8 @@ export class HandTracker {
 	}
 
 	stop() {
-		cancelAnimationFrame(this.#frame);
+		if (this.#usingVfc) this.#video?.cancelVideoFrameCallback(this.#frame);
+		else cancelAnimationFrame(this.#frame);
 		this.#stream?.getTracks().forEach((track) => track.stop());
 		this.#stream = null;
 		this.#landmarker?.close();
@@ -73,27 +88,63 @@ export class HandTracker {
 		if (this.#recording?.length) download(serializeClip(this.#recording));
 		this.#recording = null;
 		this.labels = null;
+		this.stats = '';
 		this.hand = null;
 		this.skeleton = [];
 		this.status = 'off';
 	}
 
+	#schedule() {
+		const video = this.#video;
+		if (!video) return;
+		this.#frame = this.#usingVfc
+			? video.requestVideoFrameCallback((now, metadata) => this.#onVideoFrame(now, metadata))
+			: requestAnimationFrame(this.#tick);
+	}
+
+	#onVideoFrame(now: number, metadata: VideoFrameCallbackMetadata) {
+		const time = metadata.mediaTime > 0 ? metadata.mediaTime * 1000 : now;
+		this.#frameStats.presented(metadata.presentedFrames);
+		if (time > this.#lastTime) {
+			this.#lastTime = time;
+			this.#detect(time);
+		}
+		this.#schedule();
+	}
+
 	#tick = () => {
+		const video = this.#video;
+		if (video && video.currentTime !== this.#lastTime && video.readyState >= 2) {
+			this.#lastTime = video.currentTime;
+			this.#detect(performance.now());
+		}
+		this.#schedule();
+	};
+
+	#detect(time: number) {
 		const video = this.#video;
 		const landmarker = this.#landmarker;
 		if (!video || !landmarker) return;
-		if (video.currentTime !== this.#lastTime && video.readyState >= 2) {
-			this.#lastTime = video.currentTime;
-			const aspect = video.videoWidth / video.videoHeight || 4 / 3;
-			const now = performance.now();
-			const frame = toRawFrame(landmarker.detectForVideo(video, now), aspect, now);
-			this.#recording?.push(frame);
-			this.skeleton = frame.hands.map((h) => h.landmarks.map((p) => ({ x: 1 - p.x, y: p.y })));
-			this.hand = this.#pipeline(frame);
-			if (this.labels) this.labels = frame.hands.map((h) => `${h.label} ${h.score.toFixed(2)}`);
+		const aspect = video.videoWidth / video.videoHeight || 4 / 3;
+		const started = performance.now();
+		const result = landmarker.detectForVideo(video, time);
+		this.#frameStats.detect(performance.now() - started);
+		const frame = toRawFrame(result, aspect, time);
+		this.#recording?.push(frame);
+		this.skeleton = frame.hands.map((h) => h.landmarks.map((p) => ({ x: 1 - p.x, y: p.y })));
+		this.hand = this.#pipeline(frame);
+		if (this.labels) {
+			this.labels = frame.hands.map((h) => `${h.label} ${h.score.toFixed(2)}`);
+			this.#showStats(started);
 		}
-		this.#frame = requestAnimationFrame(this.#tick);
-	};
+	}
+
+	#showStats(now: number) {
+		if (now - this.#statsShownAt < 500) return;
+		this.#statsShownAt = now;
+		const { p50, p95, dropped } = this.#frameStats.summary();
+		this.stats = `${this.#delegate} ${p50.toFixed(0)}/${p95.toFixed(0)} ms, ${dropped} dropped`;
+	}
 }
 
 function download(text: string) {

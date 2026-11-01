@@ -291,6 +291,7 @@
 			<span class="dot" aria-hidden="true"></span>Camera on
 			{#if tracker.labels}<span class="labels">{tracker.labels.join(' · ') || 'no hands'}</span
 				>{/if}
+			{#if tracker.stats}<span class="labels">{tracker.stats}</span>{/if}
 		</figcaption>
 	</figure>
 
