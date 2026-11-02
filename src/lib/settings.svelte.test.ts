@@ -18,7 +18,7 @@ const templates = Object.fromEntries(
 afterEach(() => {
 	vi.unstubAllGlobals();
 	settings.drawingHand = 'Right';
-	settings.labelsInverted = false;
+	settings.labelsInverted = true;
 	settings.handsOnboarded = false;
 	settings.calibration = null;
 });
@@ -26,9 +26,9 @@ afterEach(() => {
 const saved = (data: Map<string, string>) => JSON.parse(data.get(SETTINGS_KEY)!);
 
 describe('settings', () => {
-	it('defaults to the right hand, upright labels, no setup and no calibration', () => {
+	it('defaults to the right hand, flipped webcam labels, no setup and no calibration', () => {
 		expect(settings.drawingHand).toBe('Right');
-		expect(settings.labelsInverted).toBe(false);
+		expect(settings.labelsInverted).toBe(true);
 		expect(settings.handsOnboarded).toBe(false);
 		expect(settings.calibration).toBeNull();
 	});
@@ -45,24 +45,31 @@ describe('settings', () => {
 
 	it('saves and loads the label convention, the setup flag and the calibration', () => {
 		const data = stubStorage();
-		settings.labelsInverted = true;
+		settings.labelsInverted = false;
 		settings.handsOnboarded = true;
 		settings.calibration = templates;
 		expect(saved(data)).toEqual({
 			drawingHand: 'Right',
-			labelsInverted: true,
+			handLabelsFlipped: false,
 			handsOnboarded: true,
 			calibration: templates
 		});
 		const stored = data.get(SETTINGS_KEY)!;
-		settings.labelsInverted = false;
+		settings.labelsInverted = true;
 		settings.handsOnboarded = false;
 		settings.calibration = null;
 		data.set(SETTINGS_KEY, stored);
 		settings.load();
-		expect(settings.labelsInverted).toBe(true);
+		expect(settings.labelsInverted).toBe(false);
 		expect(settings.handsOnboarded).toBe(true);
 		expect(settings.calibration).toEqual(templates);
+	});
+
+	it('ignores the old unmeasured label setting, so earlier saves cannot keep hands swapped', () => {
+		const data = stubStorage({ [SETTINGS_KEY]: JSON.stringify({ labelsInverted: false }) });
+		settings.load();
+		expect(settings.labelsInverted).toBe(true);
+		expect(data.size).toBe(1);
 	});
 
 	it('forgets an old sweep setting and drops a malformed calibration', () => {

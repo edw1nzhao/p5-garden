@@ -29,9 +29,6 @@ export interface SlotOptions {
 	labelsInverted?: boolean;
 }
 
-// The default; setup checks it against the user's own right hand and stores the answer.
-export const LABEL_IS_USERS_HAND = true;
-
 interface Vec {
 	x: number;
 	y: number;
@@ -73,7 +70,7 @@ export class HandSlots {
 			graceMs: 300,
 			gate: 0.25,
 			crossing: 0.15,
-			labelsInverted: !LABEL_IS_USERS_HAND,
+			labelsInverted: false,
 			...options
 		};
 	}

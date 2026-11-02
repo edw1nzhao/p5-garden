@@ -94,9 +94,9 @@
 							Switch to {otherHand}
 						</button>
 					</p>
-					{#if settings.labelsInverted}
+					{#if !settings.labelsInverted}
 						<p class="muted">
-							Your camera reports hands the other way round, so the labels are flipped for you.
+							Your camera reports left and right unusually, so they are read the other way for you.
 						</p>
 					{/if}
 				{:else}

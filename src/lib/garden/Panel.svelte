@@ -218,6 +218,15 @@
 			>
 				Recalibrate hands
 			</button>
+			<button
+				type="button"
+				class="toggle"
+				aria-pressed={!settings.labelsInverted}
+				title="Use this if the camera mixes up your left and right hands"
+				onclick={() => (settings.labelsInverted = !settings.labelsInverted)}
+			>
+				Swap left and right
+			</button>
 		</fieldset>
 	</div>
 </aside>
