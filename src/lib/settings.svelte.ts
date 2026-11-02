@@ -6,7 +6,7 @@ export const SETTINGS_KEY = 'p5-garden:settings';
 
 interface Saved {
 	drawingHand: DrawingHand;
-	labelsInverted: boolean;
+	handLabelsFlipped: boolean;
 	handsOnboarded: boolean;
 	calibration: Templates | null;
 }
@@ -18,8 +18,8 @@ function read(): Partial<Saved> {
 		const calibration = parseTemplates(saved.calibration);
 		return {
 			...(hand === 'Left' || hand === 'Right' ? { drawingHand: hand } : {}),
-			...(typeof saved.labelsInverted === 'boolean'
-				? { labelsInverted: saved.labelsInverted }
+			...(typeof saved.handLabelsFlipped === 'boolean'
+				? { handLabelsFlipped: saved.handLabelsFlipped }
 				: {}),
 			...(typeof saved.handsOnboarded === 'boolean'
 				? { handsOnboarded: saved.handsOnboarded }
@@ -42,7 +42,8 @@ function write(values: Saved) {
 /** Preferences kept in this browser. Call `load()` once mounted, so server and client markup match. */
 class Settings {
 	#drawingHand = $state<DrawingHand>('Right');
-	#labelsInverted = $state(false);
+	// MediaPipe labels as if the image were mirrored; the garden feeds it the raw webcam.
+	#labelsInverted = $state(true);
 	#handsOnboarded = $state(false);
 	#calibration = $state.raw<Templates | null>(null);
 
@@ -88,7 +89,7 @@ class Settings {
 	#save() {
 		write({
 			drawingHand: this.#drawingHand,
-			labelsInverted: this.#labelsInverted,
+			handLabelsFlipped: this.#labelsInverted,
 			handsOnboarded: this.#handsOnboarded,
 			calibration: this.#calibration
 		});
@@ -97,7 +98,7 @@ class Settings {
 	load() {
 		const saved = read();
 		this.#drawingHand = saved.drawingHand ?? this.#drawingHand;
-		this.#labelsInverted = saved.labelsInverted ?? this.#labelsInverted;
+		this.#labelsInverted = saved.handLabelsFlipped ?? this.#labelsInverted;
 		this.#handsOnboarded = saved.handsOnboarded ?? this.#handsOnboarded;
 		this.#calibration = saved.calibration ?? this.#calibration;
 	}

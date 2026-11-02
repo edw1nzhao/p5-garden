@@ -110,3 +110,16 @@ test('Recalibrate hands waits for Hands to be on, and the sweep setting is gone'
 	await expect(page.getByRole('button', { name: 'Recalibrate hands' })).toBeDisabled();
 	await expect(page.getByRole('button', { name: 'Sweep to clear' })).toHaveCount(0);
 });
+
+test('Swap left and right starts off and the choice survives a reload', async ({ page }) => {
+	await page.goto('/');
+	const swap = page.getByRole('button', { name: 'Swap left and right' });
+	await expect(swap).toHaveAttribute('aria-pressed', 'false');
+	await swap.click();
+	await expect(swap).toHaveAttribute('aria-pressed', 'true');
+	await page.reload();
+	await expect(page.getByRole('button', { name: 'Swap left and right' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+});

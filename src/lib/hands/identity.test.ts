@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Handedness, RawFrame, RawHand } from './frames.js';
-import { HandSlots, LABEL_IS_USERS_HAND } from './identity.js';
+import { HandSlots } from './identity.js';
 import { createPipeline } from './pipeline.js';
 import { replay } from './replay.js';
 import { hand, random, type Pose } from './synthetic.js';
@@ -114,8 +114,7 @@ describe('HandSlots', () => {
 		expect(run(true).drawing).not.toBeNull();
 	});
 
-	it('reads labels as the user’s own hands by default', () => {
-		expect(LABEL_IS_USERS_HAND).toBe(true);
+	it('takes labels as given unless told they are inverted', () => {
 		const out = new HandSlots({ drawingHand: 'Right' }).update(frame(0, [at(0.4)]));
 		expect(out.drawing).not.toBeNull();
 	});
