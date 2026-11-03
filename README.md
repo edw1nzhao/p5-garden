@@ -45,13 +45,39 @@ pnpm dev
 - With the canvas focused: arrow keys move, `+`/`-` grow and shrink, `[`/`]` turn, Delete removes,
   Escape deselects.
 - With reduced motion on, the garden redraws only when you change it.
+- Ctrl/⌘ + wheel or a trackpad pinch zooms about the cursor; the wheel, Space-drag or middle-drag
+  pans; `0` or the zoom readout resets. Zoomed out, you can plant past the stage edge.
+- Clear empties the garden, with an Undo toast.
+
+## Hands
+
+Press Hands to play with your webcam. Tracking runs entirely in the browser; the hand model and
+wasm are served from this site, so no video or landmarks leave the device. The first time, a short
+guide checks which hand is which, then learns your own hand shapes.
+
+Your drawing hand (Right by default, switch it in the Garden panel) pinches to act: pinch a plant to
+grab and move it, or in Paint, pinch and move to paint. Your other hand holds a shape to choose what happens:
+
+| Other hand                      | Drawing hand pinches                                     |
+| ------------------------------- | -------------------------------------------------------- |
+| Fist / one finger / two fingers | paints vine / silk / shimmer                             |
+| Three fingers                   | mirror painting                                          |
+| L (thumb and index)             | picks a hue by height; it stays after you drop the L     |
+| Open palm                       | waving makes a breeze                                    |
+| Both palms open and still       | clears the garden after a short countdown                |
+| Both hands pinch                | zoom and pan the canvas, or resize and turn a held plant |
+
+Point at a seed in the left rail and hold, or pinch it: the drawing hand plants it, the other hand
+latches it so each pinch on empty soil plants that seed. `?debug-hands` shows labels, timings and
+confidence; `?record-hands` downloads a clip of landmarks when Hands is turned off. If the camera
+mixes up your hands, use Swap left and right in the Garden panel.
 
 ## Checks
 
 ```sh
 pnpm check     # svelte-check
-pnpm test      # unit tests (scene and geometry)
-pnpm test:e2e  # Playwright drag-and-drop tests
+pnpm test      # unit tests (scene, geometry and the camera-free hand pipeline)
+pnpm test:e2e  # Playwright tests
 ```
 
 ## Deploy
