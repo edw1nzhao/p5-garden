@@ -53,3 +53,15 @@ pnpm check     # svelte-check
 pnpm test      # unit tests (scene and geometry)
 pnpm test:e2e  # Playwright drag-and-drop tests
 ```
+
+## Deploy
+
+The app runs on Cloudflare Workers through `@sveltejs/adapter-cloudflare` (config in `wrangler.jsonc`).
+Pages render on the worker so each response carries the Content Security Policy with a fresh nonce.
+
+```sh
+pnpm exec wrangler login   # once
+pnpm deploy                # builds, then wrangler deploy
+```
+
+If wrangler can see more than one Cloudflare account, set `CLOUDFLARE_ACCOUNT_ID` for the deploy.
