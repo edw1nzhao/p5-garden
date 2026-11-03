@@ -3,6 +3,8 @@
 An art toy built on [svelte-p5](https://github.com/edw1nzhao/svelte-p5): drag living, generative elements
 (blooms, swarms, ribbons) onto a dark canvas, then move, grow and turn them.
 
+Play it at [garden.edwinzhao.com](https://garden.edwinzhao.com).
+
 The scene is Svelte state: a list of elements with a position, scale, rotation and seed. p5 only draws
 it, and the selection handles are Svelte DOM over the canvas. Elements are seeded, so a composition
 draws the same way every time.
